@@ -1,0 +1,98 @@
+
+# Load necessary libraries
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+
+# Ensure the Seurat object is loaded
+seurat_obj <- RealBatchCorrectedBacherSeurat
+
+# Extract metadata
+metadata <- seurat_obj@meta.data
+
+# Rename clusters
+metadata <- metadata %>%
+  mutate(new_cluster_names = recode(new_cluster_names,
+                                    "Central memory" = "Naïve",
+                                    "Type-1 IFN signature" = "Type-1 IFN signature",
+                                    "Transitional memory" = "Transitional memory",
+                                    "Tfh-like" = "Tfh-like",
+                                    "Cytotoxic / Th1" = "Cytotoxic / Th1"))
+
+# Define the correct order
+selected_clusters <- c("Naïve", "Type-1 IFN signature", "Transitional memory", "Tfh-like", "Cytotoxic / Th1")
+
+# Filter for only the relevant clusters
+metadata <- metadata %>%
+  filter(new_cluster_names %in% selected_clusters)
+
+# Set factor levels to enforce correct order
+metadata$new_cluster_names <- factor(metadata$new_cluster_names, levels = selected_clusters)
+
+# Calculate percentage for full dataset
+metadata_summary <- metadata %>%
+  group_by(new_cluster_names, spike) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(new_cluster_names) %>%
+  mutate(percentage = (count / sum(count)) * 100)
+
+# Create percentage bar plot for full dataset
+ggplot(metadata_summary, aes(x = new_cluster_names, y = percentage, fill = spike)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Spike Category Distribution Across Clusters (Full Dataset, %)",
+       x = "Cluster Names",
+       y = "Percentage") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Subset 500 random cells per spike category
+set.seed(1234)  # For reproducibility
+subset_metadata <- metadata %>%
+  group_by(spike) %>%
+  sample_n(size = min(500, n()), replace = FALSE) %>%
+  ungroup()
+
+# Subset additional 500 random cells from the entire dataset (any spike category)
+random_subset <- metadata %>%
+  sample_n(size = 500, replace = FALSE) %>%
+  mutate(spike = "Random 500")  # Assign new spike category
+
+# Combine the original subset with the new random 500 subset
+subset_metadata <- bind_rows(subset_metadata, random_subset)
+
+# Calculate percentage for subset
+subset_summary <- subset_metadata %>%
+  group_by(new_cluster_names, spike) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(new_cluster_names) %>%
+  mutate(percentage = (count / sum(count)) * 100)
+
+# Create percentage bar plot for subset of 500 cells per category + random 500
+ggplot(subset_summary, aes(x = new_cluster_names, y = percentage, fill = spike)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Spike Category Distribution Across Clusters (500 Random Cells per Category + Random 500, %)",
+       x = "Cluster Names",
+       y = "Percentage") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Create a new column to differentiate between SARS-CoV-2 Spike Specific and Random 500
+subset_metadata <- subset_metadata %>%
+  mutate(spike_group = case_when(
+    spike == "SARS-CoV-2 Spike Specific" ~ "SARS-CoV-2 Spike Specific",
+    spike == "Random 500" ~ "Random 500",
+    TRUE ~ "Other"
+  ))
+
+# Filter out "Other" spike groups if they exist
+subset_metadata_filtered <- subset_metadata %>% 
+  filter(spike_group %in% c("SARS-CoV-2 Spike Specific", "Random 500"))
+
+# Perform Chi-square test for each cluster to compare SARS-CoV-2 Spike Specific vs Random 500
+significance_results <- subset_metadata_filtered %>%
+  group_by(new_cluster_names) %>%
+  summarise(
+    p_value = chisq.test(table(spike_group))$p.value,
+    .groups = "drop"
+  )
+
+# Print the results
+significance_results
