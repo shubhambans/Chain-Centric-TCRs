@@ -1,0 +1,121 @@
+
+
+library(dplyr)
+library(stringdist)
+
+# Define the pattern to compare with
+pattern <- "CAGXNYGGSQGNLIF"
+
+# Define function to calculate minimum Levenshtein distance from the pattern for each part of the junction sequence
+min_leven_distance <- function(junction, pattern) {
+    junctions <- unlist(strsplit(junction, "\\."))  # Split junction sequence at the period (.)
+    distances <- sapply(junctions, function(j) stringdist(j, pattern, method = "lv"))
+    return(min(distances))
+}
+
+# Add leven_meta column to CD4merge dataframe
+CD4merge <- CD4merge %>%
+    mutate(
+        leven_meta = sapply(junction, min_leven_distance, pattern = pattern)  # Calculate min Levenshtein distance
+    )
+
+
+
+library(ggseqlogo)
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+
+# Define the leven_meta values we want to plot
+leven_meta_values <- c(1, 2, 3)
+
+# Loop over selected leven_meta values
+for (leven in leven_meta_values) {
+    # Filter TRA sequences for the current leven_meta
+    tra_sequences <- CD4merge %>% 
+        filter(leven_meta == leven, chain == "TRA")
+
+    # Get total TRA sequences for percentage calculation
+    total_tra_ref <- nrow(tra_sequences)
+
+    # Get the top 5 most frequent junction lengths
+    top_lengths_tra <- names(sort(table(nchar(tra_sequences$junction)), decreasing = TRUE)[1:5])
+
+    # Select only the top 3 lengths for plotting
+    top_lengths_tra <- as.numeric(top_lengths_tra[1:3])
+
+    # Create a list to store motif plots for TRA
+    tra_plots <- list()
+
+    # Generate motif plots for TRA
+    for (length in top_lengths_tra) {
+        tra_subset <- tra_sequences %>% filter(nchar(junction) == length)
+
+        # Ensure we have enough sequences
+        if (nrow(tra_subset) < 10) next  
+
+        # Calculate percentage
+        percentage <- round((nrow(tra_subset) / total_tra_ref) * 100, 2)
+
+        # Generate motif plot
+        p <- ggseqlogo(tra_subset$junction, method = "bits") +
+            ggtitle(paste("TRA Motif - Leven_Meta", leven, "- Length", length, 
+                          "\n(", percentage, "% of TRA sequences)")) +
+            theme_minimal()
+
+        # Store plot
+        tra_plots[[as.character(length)]] <- p
+    }
+
+    # Save TRA figure
+    if (length(tra_plots) > 0) {
+        tra_filename <- paste0("leven_meta_", leven, "_TRA.png")
+        png(tra_filename, width = 1200, height = 800)
+        grid.arrange(grobs = tra_plots, ncol = 1)
+        dev.off()
+    }
+
+    # --- TRB Processing ---
+    trb_sequences <- CD4merge %>%
+        filter(barcode %in% tra_sequences$barcode, chain == "TRB")
+
+    # Get total TRB sequences across all junction lengths (fixed calculation)
+    total_trb_ref <- nrow(trb_sequences)
+
+    # Get the top 5 most frequent junction lengths in TRB
+    top_lengths_trb <- names(sort(table(nchar(trb_sequences$junction)), decreasing = TRUE)[1:5])
+
+    # Select only the top 3 lengths for plotting
+    top_lengths_trb <- as.numeric(top_lengths_trb[1:3])
+
+    # Create a list to store motif plots for TRB
+    trb_plots <- list()
+
+    # Generate motif plots for TRB
+    for (length in top_lengths_trb) {
+        trb_subset <- trb_sequences %>% filter(nchar(junction) == length)
+
+        # Ensure we have enough sequences
+        if (nrow(trb_subset) < 10) next  
+
+        # Calculate percentage correctly
+        percentage <- round((nrow(trb_subset) / total_trb_ref) * 100, 2)
+
+        # Generate motif plot
+        p <- ggseqlogo(trb_subset$junction, method = "bits") +
+            ggtitle(paste("TRB Motif - Leven_Meta", leven, "- Length", length, 
+                          "\n(", percentage, "% of TRB sequences)")) +
+            theme_minimal()
+
+        # Store plot
+        trb_plots[[as.character(length)]] <- p
+    }
+
+    # Save TRB figure
+    if (length(trb_plots) > 0) {
+        trb_filename <- paste0("leven_meta_", leven, "_TRB.png")
+        png(trb_filename, width = 1200, height = 800)
+        grid.arrange(grobs = trb_plots, ncol = 1)
+        dev.off()
+    }
+}
