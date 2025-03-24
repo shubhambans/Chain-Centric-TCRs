@@ -1,0 +1,43 @@
+#THIS MAY BE WRONG
+#Load in the VDJDB df
+coviddf<-subset(df, df$`Epitope species`=="SARS-CoV-2")
+df_collapsed <- aggregate(`Epitope species` ~ CDR3, data = df, FUN = function(x) paste(sort(unique(x)), collapse = ", "))
+CD4merge$epitopeSpecies <- df_collapsed$`Epitope species`[match(CD4merge$junction, df_collapsed$CDR3)]
+CD4merge_filtered$epitopeSpecies <- df_collapsed$`Epitope species`[match(CD4merge_filtered$junction, df_collapsed$CDR3)]
+CD4merge_unexpanded$epitopeSpecies <- df_collapsed$`Epitope species`[match(CD4merge_unexpanded$junction, df_collapsed$CDR3)]
+df_collapsed <- aggregate(`Epitope species` ~ CDR3, data = coviddf, FUN = function(x) paste(sort(unique(x)), collapse = ", "))
+
+CD4merge <- CD4merge %>%
+    mutate(VDJmatch = ifelse(!is.na(epitopeSpecies), "Matched in VDJdb", "Not Matched in VDJdb"))
+CD4merge_filtered <- CD4merge_filtered %>%
+    mutate(VDJmatch = ifelse(!is.na(epitopeSpecies), "Matched in VDJdb", "Not Matched in VDJdb"))
+CD4merge_unexpanded <- CD4merge_unexpanded %>%
+    mutate(VDJmatch = ifelse(!is.na(epitopeSpecies), "Matched in VDJdb", "Not Matched in VDJdb"))
+df_collapsed <- aggregate(`Epitope gene` ~ CDR3, data = coviddf, FUN = function(x) paste(sort(unique(x)), collapse = ", "))
+
+# Step 2: Match and insert the sorted, collapsed 'Epitope gene' values into CD4merge
+CD4merge_filtered$`Epitope gene` <- df_collapsed$`Epitope gene`[match(CD4merge_filtered$junction, df_collapsed$CDR3)]
+
+CD4merge$`Epitope gene` <- df_collapsed$`Epitope gene`[match(CD4merge$junction, df_collapsed$CDR3)]
+                                                    CD4merge_unexpanded$`Epitope gene`<-df_collapsed$`Epitope gene`[match(CD4merge_unexpanded$junction, df_collapsed$CDR3)]
+library(dplyr)
+#below is the confusing part....idk whether to use covid df or just df for df_collapsed
+#df menas that the epitope gene will be for all epitope species while covid df will be just for covid
+# Step 1: Collapse 'Epitope gene' values for each unique 'cdr3', ensuring alphabetical order
+df_collapsed <- aggregate(`Epitope gene` ~ CDR3, data = df, FUN = function(x) paste(sort(unique(x)), collapse = ", "))
+
+# Step 2: Match and insert the sorted, collapsed 'Epitope gene' values into CD4merge
+CD4merge$`Epitope gene` <- df_collapsed$`Epitope gene`[match(CD4merge$junction, df_collapsed$CDR3)]
+
+# Add the 'spike' column based on the 'Epitope gene' and 'VDJmatch' columns
+CD4merge <- CD4merge %>%
+    mutate(spike = case_when(
+        VDJmatch == "Not Matched in VDJdb" ~ "Not VDJdb Matched",  # If not matched in VDJdb
+        !grepl("SARS-CoV-2", epitopeSpecies, ignore.case = TRUE) ~ "Non SARS-CoV-2 Matched",  # If Epitope gene is NA but matched in VDJdb
+        grepl("Spike", `Epitope gene`, ignore.case = TRUE) ~ "SARS-CoV-2 Spike Specific",  # If Epitope gene contains 'Spike'
+        TRUE ~ "SARS-CoV-2 Other Specific"  # If Epitope gene is not NA but does not contain 'Spike'
+    ))
+
+# View the updated CD4merge dataframe
+head(CD4merge)
+
