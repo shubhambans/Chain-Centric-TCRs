@@ -1,0 +1,421 @@
+
+None selected 
+
+Skip to content
+Using Gmail with screen readers
+in:draft 
+
+1 of 305
+TCR graph figures
+research bri
+
+
+Peter Linsley
+Attachments
+Thu, Mar 13, 11:44 AM (11 days ago)
+to Shubham
+
+Hi Shubham-
+
+I got an email yesterday saying that IT had fixed the Xtools problem you were having when trying to install TCRgraph.
+
+ 
+
+In the meantime, I realized that I had pretty much already made the plots that you needed. I made a few small modifications and attached them to this email.
+
+ 
+
+I made these plots from VDJdb downloaded 1/3/2025 and filtered as follows: 1) select only human sequences with a complex id not equal to 0; and 2) select only TCRs having a TRA or TRB found with multiple counter chains (i.e., TRA- or TRB-centric metaclones). This second subset comprised ~25% of the junctions and ~38% cells p[resent after step 1.
+
+ 
+
+I’ve also attached code for both a Forest plot overview and the TCR graphs.
+
+ 
+
+Let me know if you have questions. Thanks,
+
+p
+
+ 
+
+Peter Linsley
+
+Member,
+
+Benaroya Research Institute
+
+1201 9th Ave
+
+Seattle, WA 98109
+
+plinsley@benaroyaresearch.org
+
+206.818.3206
+
+--CONFIDENTIALITY NOTICE--: The information contained in this email is intended for the exclusive use of the addressee and may contain confidential information. If you are not the intended recipient, you are hereby notified that any form of dissemination of this communication is strictly prohibited. www.benaroyaresearch.org
+...
+
+[Message clipped]  View entire message
+ 3 Attachments
+  •  Scanned by Gmail
+
+Shubham Bansal
+Sun, Mar 16, 1:22 AM (8 days ago)
+Hi Peter, Thank you so much! This is all very helpful :) The plots look amazing! I'll definitely incorporate these into my PowerPoint and just make a few modifi
+
+Shubham Bansal
+Thu, Mar 20, 12:14 AM (4 days ago)
+Hi! I finished all the edits, so I was wondering when you would want to meet. Thanks, Shubham
+
+Shubham Bansal <shubhamb@uw.edu>
+Attachments
+Sat, Mar 22, 6:40 PM (2 days ago)
+to Peter
+
+Hey Peter,
+
+I got done with a couple of the figures, and I also did the v_jene and j_gene jaccard index. However, I do not think I like those graphs. The epitopes seem to be too common across the different j and v genes as they are much, much more common than the junction sequences. I have attached those images to the email. (v refers to v gene a j refers to j gene in the file names). 
+
+On the more positive note, the density plots look amazing and I have attached a screenshot. Also, I have started the figure captions!
+image.png image.png
+
+Thanks,
+Shubham
+
+ 4 Attachments
+  •  Scanned by Gmail
+Magical AI Smart Reply
+
+Yes...
+
+No...
+
+Custom...
+
+Peter Linsley (benaroyaresearch.org)
+Hi Peter,
+
+I was wondering if Fridays from 1-2 PM would work with your schedule? Alternatively, I am also free 1-2 PM on Mondays. Please let me know if either of those times work, or if there's another time that's better for you.
+
+Thanks,
+Shubham
+
+
+rm(list = ls())
+require(Biostrings)
+require(limma)
+require(plyr)
+require(gdata)
+require(ggplot2)
+library(stringdist)
+library(ggsignif)
+library(Peptides)
+#library(brigg)
+library(tcrGraph)
+library(tidyverse)
+library(igraph)
+library(graphlayouts)
+library(ggraph)
+library(viridis)
+library(gridExtra)
+library(plyr)
+library(reshape2)
+
+## load vdjdb database
+
+db <- read.delim("/Users/peterlinsley/Dropbox/ENSEMBL/VDJDB_new/SearchTable-2020-07-31 23_07_46.457.txt", stringsAsFactors=FALSE) # vdjdb 5505
+db <- read.delim("/Users/peterlinsley/Dropbox/ENSEMBL/vdjdb_010325/vdjdb.txt", stringsAsFactors=FALSE) # 01/03/2025 download
+
+colnames(db)[3] = c("junction")
+hu = subset(db, species == "HomoSapiens") #4085; 0900417 version 8827; 62753 07312020 version, 111352 01/03/2025 download
+
+huNOT0 = subset(hu, !complex.id == 0) # 83288
+
+##### trim TCR sequences
+
+tcrs1 = hu
+tcrs1 = huNOT0
+
+tcrs1$chainType = ifelse(tcrs1$v.segm %in% grep("TRA", tcrs1$v.segm, value = T), "TRA", 
+					ifelse(tcrs1$v.segm %in% grep("TRB", tcrs1$v.segm, value = T), "TRB", "other"))
+colnames(tcrs1) = gsub("complex.id", "libid", colnames(tcrs1))
+colnames(tcrs1) = gsub("v.segm", "v_gene", colnames(tcrs1))
+colnames(tcrs1) = gsub("j.segm", "j_gene", colnames(tcrs1))
+colnames(tcrs1) = gsub("antigen.species", "study_group", colnames(tcrs1))
+tcrs1 = subset(tcrs1, !libid == 0) # 83288 01/03/2025 download
+
+tra1 = subset(tcrs1, chainType == "TRA")
+trb1 = subset(tcrs1, chainType == "TRB")
+
+tra1 = tra1[c("libid", "v_gene", "j_gene", "junction", "chainType", "study_group")]
+trb1 = trb1[c("libid", "v_gene", "j_gene", "junction", "chainType", "study_group")]
+
+join1 = merge(tra1, trb1, by = "libid")
+#join1 = join1[!duplicated(join1$junction.x, join1$junction.y),]
+
+no1 = ddply(join1,.(junction.x, junction.y), plyr::summarize, sum = length(junction.y))
+no1 = no1[order(-no1$sum),]
+
+## count TRBV chains per TRAV chain
+
+DFpub = data.frame(as.numeric(), as.character(), as.character(),  as.character(), as.numeric(), as.character(), as.character(),  as.character(), as.character(), stringsAsFactors = F)
+
+x = join1
+
+xnames = unique(x$junction.x)
+ncx = length(xnames)
+
+for(i in 1:ncx){
+
+	q = xnames[i]
+	qsub = subset(x, junction.x == q)
+	lenAgene = as.numeric(length(unique(qsub$v_gene.x)))
+	aGene = unique(qsub$v_gene.x)
+	aJ = unique(qsub$j_gene.x)
+	bGene = unique(qsub$v_gene.y)
+	bJ = unique(qsub$j_gene.y)
+	lenAjunc = as.numeric(length(unique(qsub$junction.x)))
+	lenBjunc = as.numeric(length(unique(qsub$junction.y)))
+	
+	unA = unique(qsub$v_gene.x)
+	unB = unique(qsub$junction.y)
+	Ajunc = unique(qsub$junction.x)
+	Bjunc = unique(qsub$junction.y)
+	Ajunc = paste(Ajunc, collapse = ", ", sep = " ")
+	Bjunc = paste(Bjunc, collapse = ", ", sep = " ")
+
+	TRAVgene = paste(aGene, collapse = ", ", sep = " ")
+	TRAJgene = paste(aJ, collapse = ", ", sep = " ")	
+	TRBVgene = paste(bGene, collapse = ", ", sep = " ")
+	TRBJgene = paste(bJ, collapse = ", ", sep = " ")
+	
+	stat.x = (qsub$status.x)
+	stat.y = (qsub$status.y)
+	
+	status = paste(c(stat.x), collapse = ", ", sep = " ")
+	
+	resultPub = c(lenAjunc, TRAVgene, q, TRAJgene, lenBjunc, TRBVgene, Bjunc, TRBJgene, status)
+	DFpub[i, ] = resultPub
+	colnames(DFpub) = c("noTRAjuncs", "TRAVgenes", "TRAjuncs", "TRAJgenes", "noTRBjuncs", "TRBgenes", "TRBjuncs",  "TRBJgenes", "status")	
+	}
+
+no2 = ddply(join1,.(junction.y), plyr::summarize, sum = length(junction.x))
+no2 = no2[order(-no2$sum),]
+
+uniqueTRA = DFpub
+uniqueTRA$noTRBjuncs = as.numeric(uniqueTRA$noTRBjuncs)
+uniqueTRA = uniqueTRA[order(-uniqueTRA$noTRBjuncs),]
+
+multTrb = subset(uniqueTRA, noTRBjuncs>1)
+multBTraJuncs = subset(join1, junction.x %in% multTrb$TRAjuncs) # 7285
+#temp = subset(hu, junction %in% multTrb$TRAjuncs) # 7285- sanity check
+multBTraJuncs$species = hu$antigen.species[match(multBTraJuncs$junction.y, hu$junction)] 
+multBTraJuncs$gene = hu$antigen.gene[match(multBTraJuncs$junction.y, hu$junction)] 
+#multBTraJuncs$Reference = hu$Reference[match(multBTraJuncs$junction.y, hu$junction)] 
+
+multBTraJuncs = data.frame(multBTraJuncs, type = "1TRA-multiTRB")
+
+## count TRAV chains per TRBV chain
+
+DFpub2 = data.frame(as.numeric(), as.character(), as.character(),  as.character(), as.numeric(), as.character(), as.character(),  as.character(), as.character(), stringsAsFactors = F)
+
+x = join1
+
+xnames = unique(x$junction.y)
+ncx = length(xnames)
+
+for(i in 1:ncx){
+
+	q = xnames[i]
+	qsub = subset(x, junction.y == q)
+	lenAgene = as.numeric(length(unique(qsub$v_gene.x)))
+	aGene = unique(qsub$v_gene.x)
+	aJ = unique(qsub$j_gene.x)
+	bGene = unique(qsub$v_gene.y)
+	bJ = unique(qsub$j_gene.y)
+	lenAjunc = as.numeric(length(unique(qsub$junction.x)))
+	lenBjunc = as.numeric(length(unique(qsub$junction.y)))
+	
+	unA = unique(qsub$v_gene.x)
+	unB = unique(qsub$junction.y)
+	Ajunc = unique(qsub$junction.x)
+	Bjunc = unique(qsub$junction.y)
+	Ajunc = paste(Ajunc, collapse = ", ", sep = " ")
+	Bjunc = paste(Bjunc, collapse = ", ", sep = " ")
+
+	TRAVgene = paste(aGene, collapse = ", ", sep = " ")
+	TRAJgene = paste(aJ, collapse = ", ", sep = " ")	
+	TRBVgene = paste(bGene, collapse = ", ", sep = " ")
+	TRBJgene = paste(bJ, collapse = ", ", sep = " ")
+	
+	stat.x = (qsub$status.x)
+	stat.y = (qsub$status.y)
+	
+	status = paste(c(stat.x), collapse = ", ", sep = " ")
+	
+	resultPub = c(lenAjunc, TRAVgene, Ajunc, TRAJgene, lenBjunc, TRBVgene, q, TRBJgene, status)
+	DFpub2[i, ] = resultPub
+	colnames(DFpub2) = c("noTRAjuncs", "TRAVgenes", "TRAjuncs", "TRAJgenes", "noTRBjuncs", "TRBgenes", "TRBjuncs",  "TRBJgenes", "status")	
+	}
+no3 = ddply(join1,.(junction.x, junction.y), plyr::summarize, sum = length(junction.y))
+no3 = no3[order(-no3$sum),]
+
+uniqueTRB = DFpub2 #16791
+uniqueTRB$noTRAjuncs = as.numeric(uniqueTRB$noTRAjuncs)
+uniqueTRB = uniqueTRB[order(-uniqueTRB$noTRAjuncs),] #16791
+
+multTra = subset(uniqueTRB, noTRAjuncs>1) #1150
+multATrbJuncs = subset(join1, junction.y %in% multTra$TRBjuncs) # 5837
+#temp = subset(hu, junction %in% multTra$TRBjuncs) # 6393, down ot 5839 when removing complex.id == 0. sanity check
+multATrbJuncs$species = hu$antigen.species[match(multATrbJuncs$junction.y, hu$junction)] 
+multATrbJuncs$gene = hu$antigen.gene[match(multATrbJuncs$junction.y, hu$junction)] 
+#multATrbJuncs$Reference = hu$Reference[match(multATrbJuncs$junction.y, hu$junction)] 
+
+multATrbJuncs = data.frame(multATrbJuncs, type = "multiTRA-1TRB")
+
+## recombine multBTraJuncs and multATrbJuncs
+
+to.plot = rbind(multBTraJuncs, multATrbJuncs)
+
+#to.plot = rbind(multBTraJuncs, multATrbJuncs)
+#length(unique(to.plot$junction.x))
+#[1] 5354
+#length(unique(to.plot$junction.y))
+#[1] 8132
+#length(unique(huNOT0$junction))
+#[1] 54643
+
+#length((to.plot$libid))
+#[1] 24555
+#length(unique(to.plot$libid))
+#[1] 17647
+#length(unique(huNOT0$libid))
+#5[1] 46188
+sum(table(to.plot$species2)) # 24555 
+
+## NB, (5354+8132)/54643 or ~25% huNOT0 junctions have TRA or TRB metaclones. Likewise, 17647/46188 or ~38% cells (libids) have TCRs that comprise TCR metaclones.
+
+## add new species column
+
+to.plot$species2 = ifelse(to.plot$species == "CMV", "CMV", 
+						ifelse(to.plot$species == "EBV", "EBV",
+							ifelse(to.plot$species == "SARS-CoV-2", "SARS-CoV2",
+								ifelse(to.plot$species == "InfluenzaA", "InfluenzaA",
+								ifelse(to.plot$species == "HomoSapiens", "HomoSapiens", "other")))))
+
+
+df = data.matrix(table(to.plot$species2, to.plot$type))
+s1 = sum(df[,1]); (s1) # 14223
+s2 = sum(df[,2]); (s2) # 10332
+
+## manual fisher tests
+
+cmv1 = df[1,1]
+EBV1 = df[2,1]
+HS1 = df[3,1]
+flu1 = df[4,1]
+covid1 = df[6,1]
+
+cmv2 = df[1,2]
+EBV2 = df[2,2]
+HS2 = df[3,2]
+flu2 = df[4,2]
+covid2 = df[6,2]
+
+## +/- CMV in two types
+a = c(cmv1, s1-cmv1)
+b = c(cmv2, s2-cmv2)
+c = cbind(a,b)
+fisher.test(c) # p-value < 2.2e-16
+
+## +/- EBV in two types
+a = c(EBV1, s1-EBV1)
+b = c(EBV2, s2-EBV2)
+c = cbind(a,b)
+fisher.test(c) # p-value < 2.2e-16
+
+## +/- HS in two types
+a = c(HS1, s1-HS1)
+b = c(HS2, s2-HS2)
+c = cbind(a,b)
+fisher.test(c) # p-value < 2.2e-16
+
+## +/- flu in two types
+a = c(flu1, s1-flu1)
+b = c(flu2, s2-flu2)
+c = cbind(a,b)
+fisher.test(c) # p-value < 2.2e-16
+
+## +/- covid in two types
+a = c(covid1, s1-covid1)
+b = c(covid2, s2-covid2)
+c = cbind(a,b)
+fisher.test(c) # p-value < 2.2e-16
+
+## computationally calculate odds ratios and make Forest plot
+
+df = data.matrix(table(to.plot$species2, to.plot$type))
+s1 = sum(df[,1]) # 14223
+s2 = sum(df[,2]) # 10332
+
+xnames = row.names(df)
+ncx = length(xnames)
+
+DF = data.frame(as.numeric(), as.numeric(), as.numeric(), as.numeric())
+
+for(i in 1:ncx){
+q = xnames[i]
+
+a1 = df[i,1]
+a2 = df[i,2]
+
+a = c(a1, s1-a1)
+b = c(a2, s2-a2)
+c = cbind(a, b)
+d = fisher.test(c)
+
+result = c(d$p.value, d$estimate, d$conf.int[1], d$conf.int[2])
+DF[i,] = result
+}
+row.names(DF) = xnames
+colnames(DF) = c("p.value", "OR", "lower", "upper")
+
+label = row.names(DF)
+mean = DF$OR
+lower = DF$lower
+upper = DF$upper
+
+to.plot2 <- data.frame(label, mean, lower, upper)
+
+#######################
+## make Forest plot from, https://stackoverflow.com/questions/38062650/forest-plot-for-a-beginner-simple-example-using-ggplot2-edited
+
+if(dev.cur() >1) dev.off()
+quartz(width=11,height=8, dpi=72)  ### open plotting window
+update_geom_defaults("line", aes(size = 2))
+update_geom_defaults("point", aes(size = 4))
+
+theme_set(theme_bw(34) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(legend.key = element_blank()))
+
+cbPalette = c('#66c2a5','#fc8d62', 'gray')
+
+# reverses the factor level ordering for labels after coord_flip()
+
+to.plot2$label = factor(to.plot2$label, levels = to.plot2$label)
+to.plot2$label <- factor(to.plot2$label, levels=rev(to.plot2$label))
+
+to.plot3 = data.frame(label = to.plot2$label, log2(to.plot2[,2:4]))
+labs = rev(c("CMV", "EBV", "SARS-CoV2", "InfluenzaA", "HomoSapiens", "other"))
+to.plot3$label = factor(to.plot3$label, levels = labs)
+
+ggplot(data=to.plot3, aes(x=label, y=mean, ymin=lower, ymax=upper)) +
+        geom_pointrange(size = 1) + 
+        geom_hline(yintercept=0, lty=2) +  # add a dotted line at x=1 after flip
+        coord_flip() +  # flip coordinates (puts labels on y axis)
+        #xlab("") + ylab(" 1TRA-multiTRB/multiTRA-1TRB\nlog2(odds ratio), +/- 95% CI") +
+		xlab("Specificity") + ylab("1 TRA-multiTRB vs. 1 TRB-multiTRA,\nlog2(odds ratio), +/- 95% CI")
+		last_plot() + scale_y_continuous(limits = c(-2.5,2.5))
+
+hu_vdjdb_TCR_Forest_plots_031325.txt
+Displaying hu_vdjdb_TCR_Forest_plots_031325.txt.Previous
