@@ -25,3 +25,10 @@ theme_set(
   )
 )
 
+
+
+
+#load in files (pre-existing)
+#filwes can be found in the GIT folder in BOX
+load("C:/Users/sbansal/Downloads/vdjdb09122024ALLHuman.RData")
+load("C:/Users/sbansal/Downloads/finalfiguresData.RData")
