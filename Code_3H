@@ -1,0 +1,90 @@
+#this part handles how to do it for the different clusters (make sure to match up with new names that we gave the orginal anotations)
+# Create a function to generate a single KDE plot for each new_cluster_names category
+create_kde_plot_for_cluster <- function(cluster_name, umap_data, sample_size = 500) {
+  
+  # Clean the cluster_name by replacing slashes and other special characters
+  clean_cluster_name <- gsub("[/\\]", "_", cluster_name)
+  
+  # Filter data for the current cluster category
+  cluster_data <- umap_data %>% filter(new_cluster_names == cluster_name)
+  
+  # Sample 500 random cells (or fewer if there are not enough cells)
+  sampled_data <- cluster_data %>% sample_n(min(sample_size, nrow(cluster_data)))
+  
+  # Get the axis limits from the full dataset to ensure consistent axes
+  x_limits <- range(umap_data$umap_1, na.rm = TRUE)
+  y_limits <- range(umap_data$umap_2, na.rm = TRUE)
+  
+  # Create the KDE plot for the selected cluster category
+  kde_plot <- ggplot(sampled_data, aes(x = umap_1, y = umap_2)) +
+    geom_density_2d_filled(aes(fill = ..level..), alpha = 0.6) +
+    scale_fill_viridis_d() +  # Use the correct scale for discrete values
+    theme_minimal() +
+    labs(
+      title = paste("KDE of UMAP for Cluster:", cluster_name),
+      x = "\nUMAP 1",
+      y = "UMAP 2\n"
+    ) +
+    xlim(x_limits) +   # Set consistent X axis limits
+    ylim(y_limits)     # Set consistent Y axis limits
+  
+  # Save the plot as a PNG file with a cleaned-up filename
+  ggsave(
+    filename = paste0("UMAP_KDE_Cluster_", clean_cluster_name, ".png"),
+    plot = kde_plot,
+    width = 11,
+    height = 11,
+    units = "in",
+    dpi = 500
+  )
+  
+  # Inform the user of successful saving
+  message(paste("Plot saved as UMAP_KDE_Cluster_", clean_cluster_name, ".png", sep = ""))
+}
+
+# Get the unique values in the 'new_cluster_names' column
+cluster_categories <- unique(umap_data$new_cluster_names)
+
+# Loop through each cluster category and create the corresponding KDE plot
+for (category in cluster_categories) {
+  create_kde_plot_for_cluster(category, umap_data)
+}
+
+
+#==============================================================
+#this part actually does the spike type
+# Create a function to generate a single KDE plot for each spike category
+create_kde_plot_for_category <- function(spike_category) {
+  
+  # Filter data for the current spike category
+  category_data <- umap_data %>% filter(spike == spike_category)
+  
+  # Create the KDE plot for the selected category
+  kde_plot <- ggplot(category_data, aes(x = umap_1, y = umap_2)) +
+    geom_density_2d_filled(aes(fill = ..level..), alpha = 0.6) +
+    scale_fill_viridis_d() +  # Use the correct scale for discrete values
+    theme_minimal() +
+    labs(
+      title = paste("KDE of UMAP for Spike Category:", spike_category),
+      x = "\nUMAP 1",
+      y = "UMAP 2\n"
+    )
+  
+  # Save the plot as a PNG file
+  ggsave(
+    filename = paste0("UMAP_KDE_Spike_Category_", spike_category, ".png"),
+    plot = kde_plot,
+    width = 11,
+    height = 11,
+    units = "in",
+    dpi = 500
+  )
+  
+  # Inform the user of successful saving
+  message(paste("Plot saved as UMAP_KDE_Spike_Category_", spike_category, ".png", sep = ""))
+}
+
+# Loop through each spike category and create the corresponding KDE plot
+for (category in spike_categories) {
+  create_kde_plot_for_category(category)
+}
