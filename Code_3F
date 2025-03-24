@@ -1,3 +1,5 @@
+#this code will do th trick except for the overay. The overlay uses a rought outluine of cluster 2(Naive) which is then made transparent and overlaid
+
 library(dplyr)
 library(stringdist)
 
