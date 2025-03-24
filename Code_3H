@@ -88,3 +88,69 @@ create_kde_plot_for_category <- function(spike_category) {
 for (category in spike_categories) {
   create_kde_plot_for_category(category)
 }
+
+
+#==================================================
+#this is for Random
+# Load necessary libraries
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+
+# Assuming you already have the Seurat object `RealBatchCorrectedBacherSeurat`
+# 1. Extract UMAP coordinates from Seurat object and convert to data frame
+umap_data <- Embeddings(RealBatchCorrectedBacherSeurat, "umap")
+umap_data <- as.data.frame(umap_data)  # Convert to data frame
+
+# Rename columns for easier reference (lowercase columns)
+colnames(umap_data) <- c("umap_1", "umap_2")
+
+# 2. Get metadata
+metadata <- RealBatchCorrectedBacherSeurat@meta.data
+
+# 3. Define function to generate KDE plot for a random subset of 500 cells
+create_kde_plot_random_subset <- function(umap_data, metadata, sample_size = 500, seed = 314) {
+  
+  # Randomly sample 500 cells from the entire dataset (from metadata)
+  set.seed(seed)  # Set seed for reproducibility
+  sampled_cells <- metadata[sample(1:nrow(metadata), sample_size), ]
+  
+  # Get the UMAP coordinates for the sampled cells
+  sampled_umap_data <- umap_data[rownames(sampled_cells), ]
+  
+  # Set consistent axis limits for all plots (manually from -5 to 5)
+  x_limits <- c(-5.0, 5.0)
+  y_limits <- c(-5.0, 5.0)
+  
+  # Create the KDE plot for the random subset of cells
+  kde_plot <- ggplot(sampled_umap_data, aes(x = umap_1, y = umap_2)) +
+    geom_density_2d_filled(aes(fill = ..level..), alpha = 0.6) +
+    scale_fill_viridis_d() +  # Use the correct scale for discrete values
+    theme_minimal() +
+    labs(
+      title = "KDE of UMAP for 500 Randomly Selected Cells",
+      x = "\numap_1",
+      y = "umap_2\n"
+    ) +
+    # Set consistent axis limits and breaks
+    xlim(x_limits) +   # Set consistent X axis limits
+    ylim(y_limits) +   # Set consistent Y axis limits
+    scale_x_continuous(breaks = seq(-5, 5, by = 2.5)) +  # Custom breaks for x-axis
+    scale_y_continuous(breaks = seq(-5, 5, by = 2.5))    # Custom breaks for y-axis
+  
+  # Save the plot as a PNG file
+  ggsave(
+    filename = "UMAP_KDE_Random_500_Cells.png",
+    plot = kde_plot,
+    width = 11,
+    height = 11,
+    units = "in",
+    dpi = 500
+  )
+  
+  # Inform the user of successful saving
+  message("Plot saved as UMAP_KDE_Random_500_Cells.png")
+}
+
+# 4. Call the function to create the KDE plot for the random subset of 500 cells
+create_kde_plot_random_subset(umap_data, metadata)
