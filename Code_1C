@@ -1,0 +1,450 @@
+rm(list = ls())
+require(Biostrings)
+require(limma)
+require(plyr)
+require(gdata)
+require(ggplot2)
+library(stringdist)
+library(ggsignif)
+library(Peptides)
+#library(brigg)
+library(tcrGraph)
+library(tidyverse)
+library(igraph)
+library(graphlayouts)
+library(ggraph)
+library(viridis)
+library(gridExtra)
+library(plyr)
+library(reshape2)
+
+## load vdjdb database
+
+db <- read.delim("/Users/peterlinsley/Dropbox/ENSEMBL/VDJDB_new/SearchTable-2020-07-31 23_07_46.457.txt", stringsAsFactors=FALSE) # vdjdb 5505
+db <- read.delim("/Users/peterlinsley/Dropbox/ENSEMBL/vdjdb_010325/vdjdb.txt", stringsAsFactors=FALSE) # 01/03/2025 download
+
+colnames(db)[3] = c("junction")
+hu = subset(db, species == "HomoSapiens") #4085; 0900417 version 8827; 62753 07312020 version, 111352 01/03/2025 download
+#hu10X = subset(hu, hu$Reference %in% grep("10X", hu$Reference, value = T))
+
+huNOT0 = subset(hu, !complex.id == 0) # 83288
+
+##### trim TCR sequences
+
+tcrs1 = hu
+tcrs1 = huNOT0
+
+tcrs1$chainType = ifelse(tcrs1$v.segm %in% grep("TRA", tcrs1$v.segm, value = T), "TRA", 
+					ifelse(tcrs1$v.segm %in% grep("TRB", tcrs1$v.segm, value = T), "TRB", "other"))
+colnames(tcrs1) = gsub("complex.id", "libid", colnames(tcrs1))
+colnames(tcrs1) = gsub("v.segm", "v_gene", colnames(tcrs1))
+colnames(tcrs1) = gsub("j.segm", "j_gene", colnames(tcrs1))
+colnames(tcrs1) = gsub("antigen.species", "study_group", colnames(tcrs1))
+tcrs1 = subset(tcrs1, !libid == 0) # 83288 01/03/2025 download
+
+tra1 = subset(tcrs1, chainType == "TRA")
+trb1 = subset(tcrs1, chainType == "TRB")
+
+tra1 = tra1[c("libid", "v_gene", "j_gene", "junction", "chainType", "study_group")]
+trb1 = trb1[c("libid", "v_gene", "j_gene", "junction", "chainType", "study_group")]
+
+join1 = merge(tra1, trb1, by = "libid")
+#join1 = join1[!duplicated(join1$junction.x, join1$junction.y),]
+
+no1 = ddply(join1,.(junction.x, junction.y), plyr::summarize, sum = length(junction.y))
+no1 = no1[order(-no1$sum),]
+
+## count TRBV chains per TRAV chain
+
+DFpub = data.frame(as.numeric(), as.character(), as.character(),  as.character(), as.numeric(), as.character(), as.character(),  as.character(), as.character(), stringsAsFactors = F)
+
+x = join1
+
+xnames = unique(x$junction.x)
+ncx = length(xnames)
+
+for(i in 1:ncx){
+
+	q = xnames[i]
+	qsub = subset(x, junction.x == q)
+	lenAgene = as.numeric(length(unique(qsub$v_gene.x)))
+	aGene = unique(qsub$v_gene.x)
+	aJ = unique(qsub$j_gene.x)
+	bGene = unique(qsub$v_gene.y)
+	bJ = unique(qsub$j_gene.y)
+	lenAjunc = as.numeric(length(unique(qsub$junction.x)))
+	lenBjunc = as.numeric(length(unique(qsub$junction.y)))
+	
+	unA = unique(qsub$v_gene.x)
+	unB = unique(qsub$junction.y)
+	Ajunc = unique(qsub$junction.x)
+	Bjunc = unique(qsub$junction.y)
+	Ajunc = paste(Ajunc, collapse = ", ", sep = " ")
+	Bjunc = paste(Bjunc, collapse = ", ", sep = " ")
+
+	TRAVgene = paste(aGene, collapse = ", ", sep = " ")
+	TRAJgene = paste(aJ, collapse = ", ", sep = " ")	
+	TRBVgene = paste(bGene, collapse = ", ", sep = " ")
+	TRBJgene = paste(bJ, collapse = ", ", sep = " ")
+	
+	stat.x = (qsub$status.x)
+	stat.y = (qsub$status.y)
+	
+	status = paste(c(stat.x), collapse = ", ", sep = " ")
+	
+	resultPub = c(lenAjunc, TRAVgene, q, TRAJgene, lenBjunc, TRBVgene, Bjunc, TRBJgene, status)
+	DFpub[i, ] = resultPub
+	colnames(DFpub) = c("noTRAjuncs", "TRAVgenes", "TRAjuncs", "TRAJgenes", "noTRBjuncs", "TRBgenes", "TRBjuncs",  "TRBJgenes", "status")	
+	}
+
+no2 = ddply(join1,.(junction.y), plyr::summarize, sum = length(junction.x))
+no2 = no2[order(-no2$sum),]
+
+uniqueTRA = DFpub
+uniqueTRA$noTRBjuncs = as.numeric(uniqueTRA$noTRBjuncs)
+uniqueTRA = uniqueTRA[order(-uniqueTRA$noTRBjuncs),]
+
+multTrb = subset(uniqueTRA, noTRBjuncs>1)
+multBTraJuncs = subset(join1, junction.x %in% multTrb$TRAjuncs) # 7285
+#temp = subset(hu, junction %in% multTrb$TRAjuncs) # 7285- sanity check
+multBTraJuncs$species = hu$antigen.species[match(multBTraJuncs$junction.y, hu$junction)] 
+multBTraJuncs$gene = hu$antigen.gene[match(multBTraJuncs$junction.y, hu$junction)] 
+#multBTraJuncs$Reference = hu$Reference[match(multBTraJuncs$junction.y, hu$junction)] 
+
+multBTraJuncs = data.frame(multBTraJuncs, type = "1TRA-multiTRB")
+
+## count TRAV chains per TRBV chain
+
+DFpub2 = data.frame(as.numeric(), as.character(), as.character(),  as.character(), as.numeric(), as.character(), as.character(),  as.character(), as.character(), stringsAsFactors = F)
+
+x = join1
+
+xnames = unique(x$junction.y)
+ncx = length(xnames)
+
+for(i in 1:ncx){
+
+	q = xnames[i]
+	qsub = subset(x, junction.y == q)
+	lenAgene = as.numeric(length(unique(qsub$v_gene.x)))
+	aGene = unique(qsub$v_gene.x)
+	aJ = unique(qsub$j_gene.x)
+	bGene = unique(qsub$v_gene.y)
+	bJ = unique(qsub$j_gene.y)
+	lenAjunc = as.numeric(length(unique(qsub$junction.x)))
+	lenBjunc = as.numeric(length(unique(qsub$junction.y)))
+	
+	unA = unique(qsub$v_gene.x)
+	unB = unique(qsub$junction.y)
+	Ajunc = unique(qsub$junction.x)
+	Bjunc = unique(qsub$junction.y)
+	Ajunc = paste(Ajunc, collapse = ", ", sep = " ")
+	Bjunc = paste(Bjunc, collapse = ", ", sep = " ")
+
+	TRAVgene = paste(aGene, collapse = ", ", sep = " ")
+	TRAJgene = paste(aJ, collapse = ", ", sep = " ")	
+	TRBVgene = paste(bGene, collapse = ", ", sep = " ")
+	TRBJgene = paste(bJ, collapse = ", ", sep = " ")
+	
+	stat.x = (qsub$status.x)
+	stat.y = (qsub$status.y)
+	
+	status = paste(c(stat.x), collapse = ", ", sep = " ")
+	
+	resultPub = c(lenAjunc, TRAVgene, Ajunc, TRAJgene, lenBjunc, TRBVgene, q, TRBJgene, status)
+	DFpub2[i, ] = resultPub
+	colnames(DFpub2) = c("noTRAjuncs", "TRAVgenes", "TRAjuncs", "TRAJgenes", "noTRBjuncs", "TRBgenes", "TRBjuncs",  "TRBJgenes", "status")	
+	}
+no3 = ddply(join1,.(junction.x, junction.y), plyr::summarize, sum = length(junction.y))
+no3 = no3[order(-no3$sum),]
+
+uniqueTRB = DFpub2 #16791
+uniqueTRB$noTRAjuncs = as.numeric(uniqueTRB$noTRAjuncs)
+uniqueTRB = uniqueTRB[order(-uniqueTRB$noTRAjuncs),] #16791
+
+multTra = subset(uniqueTRB, noTRAjuncs>1) #1150
+multATrbJuncs = subset(join1, junction.y %in% multTra$TRBjuncs) # 5837
+#temp = subset(hu, junction %in% multTra$TRBjuncs) # 6393, down ot 5839 when removing complex.id == 0. sanity check
+multATrbJuncs$species = hu$antigen.species[match(multATrbJuncs$junction.y, hu$junction)] 
+multATrbJuncs$gene = hu$antigen.gene[match(multATrbJuncs$junction.y, hu$junction)] 
+#multATrbJuncs$Reference = hu$Reference[match(multATrbJuncs$junction.y, hu$junction)] 
+
+multATrbJuncs = data.frame(multATrbJuncs, type = "multiTRA-1TRB")
+
+## recombine multBTraJuncs and multATrbJuncs
+
+to.plot = rbind(multBTraJuncs, multATrbJuncs)
+
+#to.plot = rbind(multBTraJuncs, multATrbJuncs)
+#length(unique(to.plot$junction.x))
+#[1] 5354
+#length(unique(to.plot$junction.y))
+#[1] 8132
+#length(unique(huNOT0$junction))
+#[1] 54643
+
+#length((to.plot$libid))
+#[1] 24555
+#length(unique(to.plot$libid))
+#[1] 17647
+#length(unique(huNOT0$libid))
+#5[1] 46188
+sum(table(to.plot$species2)) # 24555 
+
+## NB, (5354+8132)/54643 or ~25% huNOT0 junctions have TRA or TRB metaclones. Likewise, 17647/46188 or ~38% cells (libids) have TCRs that comprise TCR metaclones.
+
+## add new species column
+
+to.plot$species2 = ifelse(to.plot$species == "CMV", "CMV", 
+						ifelse(to.plot$species == "EBV", "EBV",
+							ifelse(to.plot$species == "SARS-CoV-2", "SARS-CoV2",
+								ifelse(to.plot$species == "InfluenzaA", "InfluenzaA",
+								ifelse(to.plot$species == "HomoSapiens", "HomoSapiens", "other")))))
+
+
+df = data.matrix(table(to.plot$species2, to.plot$type))
+s1 = sum(df[,1]); (s1) # 14223
+s2 = sum(df[,2]); (s2) # 10332
+
+## manual fisher tests
+
+cmv1 = df[1,1]
+EBV1 = df[2,1]
+HS1 = df[3,1]
+flu1 = df[4,1]
+covid1 = df[6,1]
+
+cmv2 = df[1,2]
+EBV2 = df[2,2]
+HS2 = df[3,2]
+flu2 = df[4,2]
+covid2 = df[6,2]
+
+## +/- CMV in two types
+a = c(cmv1, s1-cmv1)
+b = c(cmv2, s2-cmv2)
+c = cbind(a,b)
+fisher.test(c) # p-value < 2.2e-16
+
+## +/- EBV in two types
+a = c(EBV1, s1-EBV1)
+b = c(EBV2, s2-EBV2)
+c = cbind(a,b)
+fisher.test(c) # p-value < 2.2e-16
+
+## +/- HS in two types
+a = c(HS1, s1-HS1)
+b = c(HS2, s2-HS2)
+c = cbind(a,b)
+fisher.test(c) # p-value < 2.2e-16
+
+## +/- flu in two types
+a = c(flu1, s1-flu1)
+b = c(flu2, s2-flu2)
+c = cbind(a,b)
+fisher.test(c) # p-value < 2.2e-16
+
+## +/- covid in two types
+a = c(covid1, s1-covid1)
+b = c(covid2, s2-covid2)
+c = cbind(a,b)
+fisher.test(c) # p-value < 2.2e-16
+
+## computationally calculate odds ratios and make Forest plot
+
+df = data.matrix(table(to.plot$species2, to.plot$type))
+s1 = sum(df[,1]) # 14223
+s2 = sum(df[,2]) # 10332
+
+xnames = row.names(df)
+ncx = length(xnames)
+
+DF = data.frame(as.numeric(), as.numeric(), as.numeric(), as.numeric())
+
+for(i in 1:ncx){
+q = xnames[i]
+
+a1 = df[i,1]
+a2 = df[i,2]
+
+a = c(a1, s1-a1)
+b = c(a2, s2-a2)
+c = cbind(a, b)
+d = fisher.test(c)
+
+result = c(d$p.value, d$estimate, d$conf.int[1], d$conf.int[2])
+DF[i,] = result
+}
+row.names(DF) = xnames
+colnames(DF) = c("p.value", "OR", "lower", "upper")
+
+label = row.names(DF)
+mean = DF$OR
+lower = DF$lower
+upper = DF$upper
+
+to.plot2 <- data.frame(label, mean, lower, upper)
+
+##################################
+## TCR graph
+
+# Some Variables for Easy Tweaking
+##################################
+finalFigWidth = 22
+finalFigHeight = 8
+finalFigUnit = "in"
+finalFigDpi = 300
+TRAcol = viridis(1, begin = 0.12)
+TRBcol = viridis(1, begin = 0.88)
+edgeThickness = 1.2
+edgeColor = "grey"
+##################################
+nodePalette <- list(TRA = TRAcol, TRB = TRBcol)
+
+# NB ===============================================================================
+# The graphs in the .Rds files below had been previously generated by Kaitlin Flynn.
+# To generate a new graph from TCR data, use the functions in the tcrGraph package created by Mario Rosasco.
+# For example, to build a figure from P374-2, you could do:
+# 
+
+## subset two groups of VDJdb TCRs matching multi chain metaclones
+
+huNOT0 = subset(hu, !complex.id == 0)
+colnames(huNOT0) = gsub("complex.id", "libid", colnames(huNOT0))
+colnames(huNOT0) = gsub("v.segm", "v_gene", colnames(huNOT0))
+colnames(huNOT0) = gsub("j.segm", "j_gene", colnames(huNOT0))
+colnames(huNOT0) = gsub("antigen.species", "study_group", colnames(huNOT0))
+
+var1Name = c("HomoSapiens") # SARS-CoV-2, InfluenzaA, EBV, CMV, or HomoSapiens
+var2Name = c("SARS-CoV-2")
+
+var1 = subset(huNOT0, junction %in% multTrb$TRAjuncs | junction %in% multTra$TRBjuncs)
+var1 = subset(var1, study_group == var1Name)
+var1 = subset(huNOT0, huNOT0$libid %in% var1$libid)
+
+var2 = subset(huNOT0, junction %in% multTrb$TRAjuncs | junction %in% multTra$TRBjuncs)
+var2 = subset(var2, study_group == var2Name)
+var2 = subset(huNOT0, huNOT0$libid %in% var2$libid)
+rand = sample(var2$libid, size = length(var1$libid))
+var2 = subset(var2, libid %in% rand)
+
+## down sample to 250 cells each
+
+noCells = 250
+
+var1 = subset(var1, libid %in% sample(unique(var1$libid), size = noCells) )
+var2 = subset(var2, libid %in% sample(unique(var2$libid), size = noCells) )
+
+# myGraph <- tcrGraph::makeTcrGraph(tcrData, link = "junction")
+var1TcrGraph <- tcrGraph::makeTcrGraph(var1, link = "junction")
+var2TcrGraph <- tcrGraph::makeTcrGraph(var2, link = "junction")
+
+# the 'myGraph' variable could then be used in place of either 'var1TcrGraph'
+# or 'var2TcrGraph' in the example code below.
+# ==================================================================================
+
+# Prep graphs
+# var2TcrGraph <- readRDS("private_tcrgraph.Rds")
+# var1TcrGraph <- readRDS("public_tcrgraph.Rds")
+var1IGraph <- tcrGraphToIgraph(var1TcrGraph)
+var2IGraph <- tcrGraphToIgraph(var2TcrGraph)
+
+## increase node size
+mult = 1
+V(var1IGraph)$value  = V(var1IGraph)$value *mult
+V(var2IGraph)$value  = V(var2IGraph)$value *mult
+
+# open plotting window
+if(dev.cur() >1) dev.off()
+quartz(height =finalFigHeight, width =finalFigWidth, dpi =72);
+
+# Common plotting elements
+graphTheme <- function(...){
+  theme(
+    panel.background = element_blank(),
+    legend.background = element_blank(),
+    legend.key = element_rect(fill = NA),
+    plot.title = element_text(size = 16, face = "bold"),
+    legend.title = element_text(face = "bold"),
+    ...
+  )
+}
+
+# Helper function to extract legend, from 
+# http://www.sthda.com/english/wiki/wiki.php?id_contents=7930
+getLegend<-function(myggplot){
+  tmp <- ggplot_gtable(ggplot_build(myggplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)
+}
+
+# Set a couple of variables to make plotting easier
+# Note: names(vertex_attr(graph)) will give a list of vertex/node attributes
+
+V(var2IGraph)$`Number of Cells` <- V(var2IGraph)$value 
+V(var2IGraph)$Chain <- V(var2IGraph)$group
+V(var1IGraph)$`Number of Cells` <- V(var1IGraph)$value 
+V(var1IGraph)$Chain <- V(var1IGraph)$group
+
+# Plot Option 1: 'Fruchterman–Reingold' Layout
+####################################################################
+
+setwd("~/Desktop/output")
+
+var1GraphName = c(paste(var1Name, "TCRs", sep = " "))
+var2GraphName = c(paste(var2Name, "TCRs", sep = " "))
+
+set.seed(42)
+var1FrPlot <- ggraph(var1IGraph, "fr") +
+  geom_edge_link(
+    edge_width = edgeThickness,
+    edge_color = edgeColor
+  ) +
+  geom_node_point(
+    aes(fill = Chain, size = `Number of Cells`),
+    shape = 21,
+    color = "black"
+  ) +
+  scale_fill_manual(values = nodePalette) +
+  guides(fill = guide_legend(override.aes = list(size = 5))) +
+  ggtitle(var1GraphName) +
+  graphTheme()
+
+set.seed(42)
+var2FrPlot <- ggraph(var2IGraph, "fr") +
+  geom_edge_link(
+    edge_width = edgeThickness,
+    edge_color = edgeColor
+  ) +
+  geom_node_point(
+    aes(fill = Chain, size = V(var2IGraph)$`Number of Cells`),
+    shape = 21,
+    color = "black"
+  ) +
+  scale_fill_manual(values = nodePalette) +
+  guides(fill = guide_legend(override.aes = list(size = 5))) +
+  ggtitle(var2GraphName) +
+  graphTheme(legend.position = "none") #
+
+legendFrPlot <- getLegend(var1FrPlot)
+var1FrPlot <- var1FrPlot + theme(legend.position = "none")
+
+# create layout and save
+frLayout <- 
+  grid.arrange(
+    var2FrPlot,
+    var1FrPlot,
+    legendFrPlot, 
+    ncol = 3,
+    widths = c(1,1, 1)
+  )
+
+ggsave(
+  filename = format(Sys.Date(), paste(var1Name, var2Name, "%y%m%d-option2-frLayoutFigureV1.png", sep = "_")),
+  width = finalFigWidth,
+  height = finalFigHeight,
+  units = finalFigUnit,
+  dpi = finalFigDpi,
+  frLayout
+)
