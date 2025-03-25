@@ -1,0 +1,45 @@
+#do pseudotime first
+#red line is added artifically
+library(ggplot2)
+library(dplyr)
+
+# Set the genes to plot and define the order for the facets
+genes <- c("CCR7", "SELL", "IFNG", "GZMB")
+
+# Initialize an empty data frame to store expression data for all genes
+expression_data <- data.frame()
+
+# Loop over each gene to fetch expression data and combine the results into a single data frame
+for (gene in genes) {
+    # Step 1: Randomly sample 500 cells from RealBatchCorrectedBacherSeurat
+    random_subset <- RealBatchCorrectedBacherSeurat@meta.data %>%
+        sample_n(size = 500, replace = FALSE)
+    
+    # Step 2: Extract the expression data for the gene and add it to the data frame
+    random_subset$expression <- FetchData(RealBatchCorrectedBacherSeurat, vars = gene)[rownames(random_subset), ]
+    random_subset$gene <- gene  # Add a column for the gene name
+    
+    # Combine each gene’s data into a single data frame
+    expression_data <- rbind(expression_data, random_subset)
+}
+
+# Set the gene column as a factor with a specific order for facet arrangement
+expression_data$gene <- factor(expression_data$gene, levels = genes)
+
+# Plot with GRAPHFINAL formatting
+p <- ggplot(expression_data, aes(x = pseudotime, y = expression)) +
+    geom_smooth(method = "loess", color = "blue", fill = "lightblue", alpha = 0.5) +  # Smoothed loess curve
+    facet_wrap(~ gene, ncol = 2, scales = "free_y") +  # Facet by gene in two columns
+    labs(
+        title = "Expression of Selected Genes Across Pseudotime\n",
+        x = "Pseudotime\n",
+        y = "Expression Level\n"
+    ) +
+    theme(
+        plot.title = element_text(hjust = 0.5),  # Center the title
+        axis.text.x = element_text(angle = 45, hjust = 1),  # X-axis text formatting
+        legend.position = "none"  # Remove legend if not needed
+    )
+
+# Save the plot as an image with GRAPHFINAL format (10x10 inches)
+ggsave("gene_expression_pseudotime_graphfinal.png", plot = p, width = 17, height = 17, units = "in", dpi = 300)
