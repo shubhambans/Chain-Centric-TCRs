@@ -1,13 +1,13 @@
 # Step 1: Collapse 'Epitope gene' values for each unique 'cdr3', ensuring alphabetical order
 df_collapsed <- aggregate(`Epitope gene` ~ CDR3, data = df, FUN = function(x) paste(sort(unique(x)), collapse = ", "))
 
-# Step 2: Match and insert the sorted, collapsed 'Epitope gene' values into CD4merge_filtered
-CD4merge_filtered$`Epitope gene` <- df_collapsed$`Epitope gene`[match(CD4merge_filtered$junction, df_collapsed$CDR3)]
+# Step 2: Match and insert the sorted, collapsed 'Epitope gene' values into CD4merge
+CD4merge$`Epitope gene` <- df_collapsed$`Epitope gene`[match(CD4merge$junction, df_collapsed$CDR3)]
 
 library(dplyr)
 
 # Add the 'spike' column based on the 'Epitope gene' column
-CD4merge_filtered <- CD4merge_filtered %>%
+CD4merge <- CD4merge %>%
     mutate(spike = case_when(
         is.na(`Epitope gene`) ~ "Not Covid Specific",        # If Epitope gene is NA
         grepl("Spike", `Epitope gene`, ignore.case = TRUE) ~ "Spike",  # If Epitope gene contains 'Spike'
@@ -29,7 +29,7 @@ x_axis_text_hjust <- 1  # Horizontal justification of the x-axis text
 x_axis_text_vjust <- 1  # Vertical justification of the x-axis text
 
 # Step 1: Calculate the percentage of public cells for each combination of 'chain' and 'spike'
-public_percentage_spike_chain <- subset(CD4merge_filtered, spike != "Not Covid Specific") %>%
+public_percentage_spike_chain <- subset(CD4merge, spike != "Not Covid Specific") %>%
     group_by(chain, spike) %>%
     summarise(percentage_public = mean(sharing == "public") * 100)
 
@@ -47,7 +47,7 @@ p <- ggplot(public_percentage_spike_chain, aes(x = spike, y = percentage_public,
 # Step 3: Add significance lines using the raw data
 p <- p + geom_signif(
     comparisons = list(c("Spike", "Other")),  # Comparing "Spike" vs "Other"
-    data = subset(CD4merge_filtered, spike != "Not Covid Specific"),  # Using raw data for statistical testing
+    data = subset(CD4merge, spike != "Not Covid Specific"),  # Using raw data for statistical testing
     aes(x = spike, y = as.numeric(sharing == "public")),  # Use raw data for comparison
     map_signif_level = TRUE, test = "t.test", step_increase = 0.1, color = "black", size = 1
 )
