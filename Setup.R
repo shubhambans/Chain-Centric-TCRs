@@ -3,7 +3,7 @@
 library(ggplot2)
 library(dplyr)
 library(tidyr)
-librayr(tibble)
+library(tibble)
 library(igraph)
 #library(stringDist)
 library(ggsignif)
