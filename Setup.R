@@ -9,7 +9,7 @@ library(igraph)
 library(ggsignif)
 library(Seurat)
 library(monocle3)
-library(ggraph2)
+library(ggplot2)
 
 theme_set(
   theme_bw(base_size = 36) + 
@@ -32,3 +32,5 @@ theme_set(
 #filwes can be found in the GIT folder in BOX
 load("C:/Users/sbansal/Downloads/vdjdb09122024ALLHuman.RData")
 load("C:/Users/sbansal/Downloads/finalfiguresData.RData")
+#load("C:/Users/super/OneDrive/Desktop/Research-Surface/vdjdb09122024ALLHuman.RData")
+#load("C:/Users/super/OneDrive/Desktop/Research-Surface/finalfiguresData.RData")
