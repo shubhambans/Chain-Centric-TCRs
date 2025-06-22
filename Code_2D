@@ -51,3 +51,40 @@ p <- ggplot(data = subset(indices_combinedByChain, !is.na(NHC_Scalefactor) & NHC
 
 # Save the plot as a square image (10x10 inches)
 ggsave("square_plot.png", plot = p, width = 17, height = 17, units = "in", dpi = 300)
+
+
+
+
+
+
+## BH-adjusted p-value sentence  -------------------------------
+cat(
+    paste(
+        sapply(
+            c("TRA","TRB"),                                  # run for both chains
+            function(ch) {
+                dat <- subset(indices_combinedByChain,
+                              chain == ch &
+                                  NHC_Scalefactor %in% c("Healthy","Mild","Moderate","Severe"))
+                
+                pairs <- list(c("Healthy","Mild"),
+                              c("Healthy","Moderate"),
+                              c("Healthy","Severe"))
+                
+                raw_p <- sapply(pairs, function(pr) {
+                    if (all(pr %in% dat$NHC_Scalefactor)) {
+                        t.test(dat$chainSpecificPercentPublic[dat$NHC_Scalefactor == pr[1]],
+                               dat$chainSpecificPercentPublic[dat$NHC_Scalefactor == pr[2]])$p.value
+                    } else NA                                          # handle missing groups
+                })
+                
+                adj_p <- p.adjust(raw_p, method = "BH")              # BH adjustment
+                
+                sprintf("%s: Healthy vs Mild: p = %.3g, Healthy vs Moderate: p = %.3g, Healthy vs Severe: p = %.3g",
+                        ch, adj_p[1], adj_p[2], adj_p[3])
+            }
+        ),
+        collapse = "; "
+    )
+)
+## -------------------------------------------------------------
