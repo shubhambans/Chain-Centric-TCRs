@@ -1,4 +1,4 @@
-#THIS MAY BE WRONG
+#THIS MAY BE WRONG...(pretty sure it is right just be careful!)
 #Load in the VDJDB df
 coviddf<-subset(df, df$`Epitope species`=="SARS-CoV-2")
 df_collapsed <- aggregate(`Epitope species` ~ CDR3, data = df, FUN = function(x) paste(sort(unique(x)), collapse = ", "))
