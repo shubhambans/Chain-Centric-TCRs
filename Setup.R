@@ -1,4 +1,6 @@
 #hello
+#This is basic setup
+#Adttional figure setup code can be found in other Set up files
 
 library(ggplot2)
 library(dplyr)
@@ -29,7 +31,7 @@ theme_set(
 
 
 #load in files (pre-existing)
-#filwes can be found in the GIT folder in BOX
+#files can be found in the GIT folder in BOX
 load("C:/Users/sbansal/Downloads/vdjdb09122024ALLHuman.RData")
 load("C:/Users/sbansal/Downloads/finalfiguresData.RData")
 #load("C:/Users/super/OneDrive/Desktop/Research-Surface/vdjdb09122024ALLHuman.RData")
