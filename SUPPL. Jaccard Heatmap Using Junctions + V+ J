@@ -1,0 +1,87 @@
+Look at "Jaccard Heatmap Using Junctions Only"
+
+# ============================================================
+#  Libraries
+# ============================================================
+library(dplyr)
+library(reshape2)
+library(ggplot2)
+
+set.seed(42)               # reproducible sampling
+# ============================================================
+#  Function: Jaccard heat‑map using **V + J + CDR3** as the key
+# ============================================================
+run_jaccard <- function(df, chain_tag){
+
+  # ---- clean & subset to the desired chain ------------------
+  df <- df %>%
+          mutate(epitope = gsub("HIV-1","HIV",  epitope),
+                 epitope = gsub("Homo sapiens","HomoSapiens", epitope)) %>%
+          filter(grepl("CD4", cell_type, ignore.case = TRUE),
+                 chain == chain_tag,
+                 !is.na(v_gene),  v_gene  != "",
+                 !is.na(j_gene),  j_gene  != "",
+                 !is.na(junction), junction != "") %>%
+          mutate(KEY = paste(v_gene, j_gene, junction, sep = "_")) %>% # V+J+CDR3
+          distinct(KEY, .keep_all = TRUE)                               # one per key
+
+  # ---- binary matrix ----------------------------------------
+  all_epi <- unique(unlist(strsplit(df$epitope, ", ")))
+  bin <- matrix(0, nrow = nrow(df), ncol = length(all_epi),
+                dimnames = list(df$KEY, all_epi))
+  for(i in seq_len(nrow(df))){
+    eps <- strsplit(df$epitope[i], ", ")[[1]]
+    bin[i, eps] <- 1
+  }
+  bin <- as.data.frame(bin)
+
+  keep <- c("UNKNOWN","EBV","YFV","CMV","InfluenzaA",
+            "HomoSapiens","SARS-CoV-2","HIV","HCV")
+  bin <- bin[, keep, drop = FALSE]
+
+  # ---- Jaccard + fraction labels ----------------------------
+  n <- length(keep)
+  inter <- union <- jac <- matrix(0, n, n, dimnames = list(keep, keep))
+  for(i in seq_len(n))
+    for(j in seq_len(i)){
+      a <- bin[[i]]; b <- bin[[j]]
+      inter[i,j] <- sum(a & b)
+      union[i,j] <- sum(a | b)
+      jac[i,j]   <- ifelse(union[i,j]==0, NA, inter[i,j]/union[i,j])
+    }
+
+  dfJ <- melt(jac); names(dfJ) <- c("E1","E2","Jac")
+  dfJ <- subset(dfJ, as.integer(E1) >= as.integer(E2))
+  dfJ$label <- mapply(\(e1,e2) paste0(inter[e1,e2]," / ",union[e1,e2]),
+                      dfJ$E1, dfJ$E2)
+
+  # ---- plot -------------------------------------------------
+  p <- ggplot(dfJ, aes(E1, E2, fill = Jac, label = label)) +
+         geom_tile(colour = "black") +
+         scale_fill_gradientn(colours = c("white","red","dark red","grey"),
+                              values  = c(0,0.2,0.8,1),
+                              limits  = c(0,1), na.value = "grey50",
+                              breaks  = c(0,0.2,1),
+                              labels  = c("0","0.2","1"),
+                              name    = "Jaccard Index") +
+         guides(fill = guide_colorbar(title.position = "top",
+                                      title.hjust = 0.5, label = FALSE)) +
+         geom_text(size = 1.5, fontface = "bold") +
+         theme_minimal(base_size = 13) +
+         theme(axis.text.x = element_text(angle = 70, hjust = 1,
+                                          size = 25, face = "bold"),
+               axis.text.y = element_text(size = 25, face = "bold"),
+               axis.title  = element_blank(),
+               panel.grid  = element_blank()) +
+         labs(caption = paste(chain_tag, "· V + J + CDR3"))
+
+  ggsave(paste0("jaccard_", chain_tag, "_VJplusCDR3.png"), p,
+         width = 13, height = 10, units = "in", dpi = 300)
+}
+
+# ============================================================
+#  Run for TRA and TRB
+# ============================================================
+run_jaccard(merged_df, "TRA")
+run_jaccard(merged_df, "TRB")
+
