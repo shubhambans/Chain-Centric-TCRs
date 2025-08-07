@@ -1,0 +1,289 @@
+#################################################################
+#  FULL SELF-CONTAINED SCRIPT
+#  • Builds “cross-virus” and “within-virus” germ-line plots
+#  • Prints the exact number of cell / clone pairs analysed
+#  • Works for any dataframe—just point to the right column names
+#################################################################
+
+# --------------------------------------------------------------
+#  0.  Load libraries  (install once with install.packages())
+# --------------------------------------------------------------
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(scales)
+library(stringr)
+
+# --------------------------------------------------------------
+#  1.  Function: cross-virus germ-line overlap
+# --------------------------------------------------------------
+pairwise_germline_plot <- function(df,
+                                   virus_pair = c("SARS-CoV-2", "CMV"),
+                                   cdr3 = "junction",
+                                   v    = "v_gene",
+                                   j    = "j_gene",
+                                   epi  = "epitope") {
+  v1 <- virus_pair[1]; v2 <- virus_pair[2]
+
+  clean <- df |>
+    transmute(CDR3 = .data[[cdr3]],
+              V    = .data[[v]],
+              J    = .data[[j]],
+              Ep   = str_trim(.data[[epi]])) |>
+    separate_rows(Ep, sep = ",\\s*") |>
+    filter(Ep %in% virus_pair,
+           !is.na(CDR3) & CDR3 != "",
+           !is.na(V)    & V    != "",
+           !is.na(J)    & J    != "") |>
+    distinct(CDR3, V, J, Ep)
+
+  shared <- clean |>
+    group_by(CDR3) |>
+    filter(n_distinct(Ep) == 2) |>
+    ungroup()
+
+  stopifnot(nrow(shared) > 0)
+
+  pairs <- inner_join(
+    shared |> filter(Ep == v1) |> select(CDR3, V1 = V, J1 = J),
+    shared |> filter(Ep == v2) |> select(CDR3, V2 = V, J2 = J),
+    by = "CDR3", relationship = "many-to-many"
+  ) |>
+    mutate(
+      class = case_when(
+        V1 == V2 & J1 == J2 ~ "Same V & Same J",
+        V1 == V2 & J1 != J2 ~ "Same V, Different J",
+        V1 != V2 & J1 == J2 ~ "Same J, Different V",
+        TRUE               ~ "Different V & Different J"
+      )
+    )
+
+  cat("Cell pairs used:", nrow(pairs), "\n")
+
+  summary_pairs <- pairs |>
+    count(class) |>
+    mutate(percent = n / sum(n)) |>
+    complete(class = c("Same V & Same J",
+                       "Same V, Different J",
+                       "Same J, Different V",
+                       "Different V & Different J"),
+             fill = list(n = 0, percent = 0)) |>
+    mutate(class = factor(class, levels = c("Same V & Same J",
+                                           "Same V, Different J",
+                                           "Same J, Different V",
+                                           "Different V & Different J")))
+
+  pal <- c("Same V & Same J"            = "#1f77b4",
+           "Same V, Different J"        = "#ff7f0e",
+           "Same J, Different V"        = "#2ca02c",
+           "Different V & Different J"  = "#d62728")
+
+  ggplot(summary_pairs, aes(class, percent, fill = class)) +
+    geom_col(width = 0.6, show.legend = FALSE) +
+    scale_fill_manual(values = pal, drop = FALSE) +
+    scale_y_continuous(
+      limits = c(0, 1),
+      breaks = c(0, .25, .5, .75, 1),
+      labels = c("0 %", "25 %", "50 %", "75 %", "100 %")
+    ) +
+    labs(
+      title    = paste("Pair-wise germline matching:", v1, "vs", v2),
+      subtitle = paste("Total cell pairs analysed:", nrow(pairs)),
+      y        = paste("Percent of", v1, "–", v2, "cell pairs"),
+      x        = NULL
+    ) +
+    coord_flip() +
+    theme_minimal(base_size = 13)
+}
+
+# --------------------------------------------------------------
+#  2.  Function: within-virus clone diversity
+# --------------------------------------------------------------
+within_virus_clone_plot <- function(df,
+                                    virus       = "SARS-CoV-2",
+                                    cdr3 = "junction",
+                                    v    = "v_gene",
+                                    j    = "j_gene",
+                                    epi  = "epitope") {
+
+  clones <- df |>
+    transmute(CDR3 = .data[[cdr3]],
+              V    = .data[[v]],
+              J    = .data[[j]],
+              Ep   = str_trim(.data[[epi]])) |>
+    separate_rows(Ep, sep = ",\\s*") |>
+    filter(Ep == virus,
+           !is.na(CDR3) & CDR3 != "",
+           !is.na(V)    & V    != "",
+           !is.na(J)    & J    != "") |>
+    distinct(CDR3, V, J)
+
+  stopifnot(nrow(clones) >= 2)
+
+  pairs <- inner_join(
+    clones |> mutate(i1 = row_number()),
+    clones |> mutate(i2 = row_number()),
+    by = "CDR3"
+  ) |>
+    filter(i1 < i2) |>
+    mutate(
+      class = case_when(
+        V.x == V.y & J.x == J.y ~ "Exact clone",
+        V.x == V.y & J.x != J.y ~ "Same V, Different J",
+        V.x != V.y & J.x == J.y ~ "Same J, Different V",
+        TRUE                    ~ "Different V & J"
+      )
+    )
+
+  cat("Clone pairs used:", nrow(pairs), "\n")
+
+  summary_intra <- pairs |>
+    count(class) |>
+    mutate(percent = n / sum(n)) |>
+    complete(class = c("Exact clone",
+                       "Same V, Different J",
+                       "Same J, Different V",
+                       "Different V & J"),
+             fill = list(n = 0, percent = 0)) |>
+    mutate(class = factor(class, levels = c("Exact clone",
+                                           "Same V, Different J",
+                                           "Same J, Different V",
+                                           "Different V & J")))
+
+  pal <- c("Exact clone"                 = "#1f77b4",
+           "Same V, Different J"         = "#ff7f0e",
+           "Same J, Different V"         = "#2ca02c",
+           "Different V & J"             = "#d62728")
+
+  ggplot(summary_intra, aes(class, percent, fill = class)) +
+    geom_col(width = 0.6, show.legend = FALSE) +
+    scale_fill_manual(values = pal, drop = FALSE) +
+    scale_y_continuous(
+      limits = c(0, 1),
+      breaks = c(0, .25, .5, .75, 1),
+      labels = c("0 %", "25 %", "50 %", "75 %", "100 %")
+    ) +
+    labs(
+      title    = paste("Within-", virus, ": germ-line diversity of repeated junctions"),
+      subtitle = paste("Total clone pairs analysed:", nrow(pairs)),
+      y        = "Percent of clone pairs",
+      x        = NULL
+    ) +
+    coord_flip() +
+    theme_minimal(base_size = 13)
+}
+
+# --------------------------------------------------------------
+#  3.  EXAMPLES  – run any that you need
+# --------------------------------------------------------------
+
+# Example A  (cross-virus on CD4merge)
+# pairwise_germline_plot(CD4merge,
+#                        virus_pair = c("SARS-CoV-2", "CMV"),
+#                        cdr3 = "junction", v = "v_gene", j = "j_gene", epi = "epitope")
+
+# Example B  (within-virus on CD4merge)
+# within_virus_clone_plot(CD4merge,
+#                         virus = "SARS-CoV-2",
+#                         cdr3 = "junction", v = "v_gene", j = "j_gene", epi = "epitope")
+
+# Example C  (cross-virus on vdjdb)
+# pairwise_germline_plot(vdjdb,
+#                        virus_pair = c("EBV", "InfluenzaA"),
+#                        cdr3 = "junction", v = "v_gene", j = "j_gene", epi = "epitope")
+
+
+
+
+
+
+
+
+#Makes the Figure in a easier and Simpler Way
+# ============================================================
+#  Set the two viruses ONCE here
+# ============================================================
+virus_pair <- c("SARS-CoV-2", "CMV")   # ← just edit these two strings
+v1 <- virus_pair[1]                    # primary (left‑hand) virus
+v2 <- virus_pair[2]                    # comparison (right‑hand) virus
+
+# ============================================================
+#  Libraries
+# ============================================================
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(scales)
+
+# ── 0.  Clean + deduplicate ─────────────────────────────────
+clean <- df %>%
+  rename(Epitope = `Epitope species`) %>%
+  separate_rows(Epitope, sep = ",\\s*") %>%
+  filter(Epitope %in% virus_pair,
+         !is.na(CDR3) & CDR3 != "",
+         !is.na(V)    & V    != "",
+         !is.na(J)    & J    != "") %>%
+  mutate(VJ = paste(V, J, sep = "_")) %>%
+  distinct(CDR3, VJ, Epitope, .keep_all = TRUE)
+
+# ── 1.  Keep junctions present in *both* viruses ────────────
+shared <- clean %>%
+  group_by(CDR3) %>%
+  filter(n_distinct(Epitope) == 2) %>%
+  ungroup()
+
+# ── 2.  Build every v1‑cell × v2‑cell pair for each CDR3 ───
+pairs <- inner_join(
+  shared %>% filter(Epitope == v1) %>% select(CDR3, V1 = V, J1 = J),
+  shared %>% filter(Epitope == v2) %>% select(CDR3, V2 = V, J2 = J),
+  by = "CDR3",
+  relationship = "many-to-many"
+) %>%
+  mutate(
+    class = case_when(
+      V1 == V2 & J1 == J2 ~ "Same V & Same J",
+      V1 == V2 & J1 != J2 ~ "Same V, Different J",
+      V1 != V2 & J1 == J2 ~ "Same J, Different V",
+      TRUE               ~ "Different V & Different J"
+    )
+  )
+
+# ── 3.  Count & percent ────────────────────────────────────
+summary_pairs <- pairs %>%
+  count(class) %>%
+  mutate(percent = n / sum(n)) %>%
+  complete(class = c("Same V & Same J",
+                     "Same V, Different J",
+                     "Same J, Different V",
+                     "Different V & Different J"),
+           fill  = list(n = 0, percent = 0)) %>%
+  mutate(class = factor(class,
+         levels = c("Same V & Same J",
+                    "Same V, Different J",
+                    "Same J, Different V",
+                    "Different V & Different J")))
+
+# ── 4.  Fixed palette & plot ───────────────────────────────
+pal <- c("Same V & Same J"           = "#1f77b4",
+         "Same V, Different J"       = "#ff7f0e",
+         "Same J, Different V"       = "#2ca02c",
+         "Different V & Different J" = "#d62728")
+
+ggplot(summary_pairs, aes(class, percent, fill = class)) +
+  geom_col(width = 0.6, show.legend = FALSE) +
+  scale_fill_manual(values = pal, drop = FALSE) +
+  scale_y_continuous(
+    limits = c(0, 1),
+    breaks  = c(0, 0.25, 0.50, 0.75, 1.00),
+    labels  = c("0 %", "25 %", "50 %", "75 %", "100 %")
+  ) +
+  labs(
+    title = paste("Pair‑wise germline matching for CDR3s shared by",
+                  v1, "and", v2),
+    y     = paste("Percent of", v1, "–", v2, "cell pairs"),
+    x     = NULL
+  ) +
+  coord_flip() 
+
+
+
