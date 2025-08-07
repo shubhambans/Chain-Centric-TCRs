@@ -1,105 +1,14 @@
-
-None selected 
-
-Skip to content
-Using Gmail with screen readers
-in:draft 
-
-1 of 305
-TCR graph figures
-research bri
-
-
 Peter Linsley
 Attachments
 Thu, Mar 13, 11:44 AM (11 days ago)
 to Shubham
-
-Hi Shubham-
-
-I got an email yesterday saying that IT had fixed the Xtools problem you were having when trying to install TCRgraph.
-
- 
-
-In the meantime, I realized that I had pretty much already made the plots that you needed. I made a few small modifications and attached them to this email.
-
  
 
 I made these plots from VDJdb downloaded 1/3/2025 and filtered as follows: 1) select only human sequences with a complex id not equal to 0; and 2) select only TCRs having a TRA or TRB found with multiple counter chains (i.e., TRA- or TRB-centric metaclones). This second subset comprised ~25% of the junctions and ~38% cells p[resent after step 1.
-
- 
-
 I’ve also attached code for both a Forest plot overview and the TCR graphs.
 
- 
 
-Let me know if you have questions. Thanks,
 
-p
-
- 
-
-Peter Linsley
-
-Member,
-
-Benaroya Research Institute
-
-1201 9th Ave
-
-Seattle, WA 98109
-
-plinsley@benaroyaresearch.org
-
-206.818.3206
-
---CONFIDENTIALITY NOTICE--: The information contained in this email is intended for the exclusive use of the addressee and may contain confidential information. If you are not the intended recipient, you are hereby notified that any form of dissemination of this communication is strictly prohibited. www.benaroyaresearch.org
-...
-
-[Message clipped]  View entire message
- 3 Attachments
-  •  Scanned by Gmail
-
-Shubham Bansal
-Sun, Mar 16, 1:22 AM (8 days ago)
-Hi Peter, Thank you so much! This is all very helpful :) The plots look amazing! I'll definitely incorporate these into my PowerPoint and just make a few modifi
-
-Shubham Bansal
-Thu, Mar 20, 12:14 AM (4 days ago)
-Hi! I finished all the edits, so I was wondering when you would want to meet. Thanks, Shubham
-
-Shubham Bansal <shubhamb@uw.edu>
-Attachments
-Sat, Mar 22, 6:40 PM (2 days ago)
-to Peter
-
-Hey Peter,
-
-I got done with a couple of the figures, and I also did the v_jene and j_gene jaccard index. However, I do not think I like those graphs. The epitopes seem to be too common across the different j and v genes as they are much, much more common than the junction sequences. I have attached those images to the email. (v refers to v gene a j refers to j gene in the file names). 
-
-On the more positive note, the density plots look amazing and I have attached a screenshot. Also, I have started the figure captions!
-image.png image.png
-
-Thanks,
-Shubham
-
- 4 Attachments
-  •  Scanned by Gmail
-Magical AI Smart Reply
-
-Yes...
-
-No...
-
-Custom...
-
-Peter Linsley (benaroyaresearch.org)
-Hi Peter,
-
-I was wondering if Fridays from 1-2 PM would work with your schedule? Alternatively, I am also free 1-2 PM on Mondays. Please let me know if either of those times work, or if there's another time that's better for you.
-
-Thanks,
-Shubham
 
 
 rm(list = ls())
@@ -388,34 +297,3 @@ upper = DF$upper
 
 to.plot2 <- data.frame(label, mean, lower, upper)
 
-#######################
-## make Forest plot from, https://stackoverflow.com/questions/38062650/forest-plot-for-a-beginner-simple-example-using-ggplot2-edited
-
-if(dev.cur() >1) dev.off()
-quartz(width=11,height=8, dpi=72)  ### open plotting window
-update_geom_defaults("line", aes(size = 2))
-update_geom_defaults("point", aes(size = 4))
-
-theme_set(theme_bw(34) + theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank()) + theme(legend.key = element_blank()))
-
-cbPalette = c('#66c2a5','#fc8d62', 'gray')
-
-# reverses the factor level ordering for labels after coord_flip()
-
-to.plot2$label = factor(to.plot2$label, levels = to.plot2$label)
-to.plot2$label <- factor(to.plot2$label, levels=rev(to.plot2$label))
-
-to.plot3 = data.frame(label = to.plot2$label, log2(to.plot2[,2:4]))
-labs = rev(c("CMV", "EBV", "SARS-CoV2", "InfluenzaA", "HomoSapiens", "other"))
-to.plot3$label = factor(to.plot3$label, levels = labs)
-
-ggplot(data=to.plot3, aes(x=label, y=mean, ymin=lower, ymax=upper)) +
-        geom_pointrange(size = 1) + 
-        geom_hline(yintercept=0, lty=2) +  # add a dotted line at x=1 after flip
-        coord_flip() +  # flip coordinates (puts labels on y axis)
-        #xlab("") + ylab(" 1TRA-multiTRB/multiTRA-1TRB\nlog2(odds ratio), +/- 95% CI") +
-		xlab("Specificity") + ylab("1 TRA-multiTRB vs. 1 TRB-multiTRA,\nlog2(odds ratio), +/- 95% CI")
-		last_plot() + scale_y_continuous(limits = c(-2.5,2.5))
-
-hu_vdjdb_TCR_Forest_plots_031325.txt
-Displaying hu_vdjdb_TCR_Forest_plots_031325.txt.Previous
