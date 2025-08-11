@@ -75,91 +75,206 @@ head(RealBatchCorrectedBacherSeurat@meta.data)
 
 
 
+
+
+
+
 #this part handles how to do it for the different clusters (make sure to match up with new names that we gave the orginal anotations)
 # Create a function to generate a single KDE plot for each new_cluster_names category
-create_kde_plot_for_cluster <- function(cluster_name, umap_data, sample_size = 500) {
-  
+# it prints counts before and after sampling
+
+# library(dplyr)
+# library(ggplot2)
+# library(viridis)
+
+create_kde_plot_for_cluster <- function(cluster_name, umap_data, sample_size = 500, seed = 314) {
   # Clean the cluster_name by replacing slashes and other special characters
   clean_cluster_name <- gsub("[/\\]", "_", cluster_name)
-  
-  # Filter data for the current cluster category
-  cluster_data <- umap_data %>% filter(new_cluster_names == cluster_name)
-  
-  # Sample 500 random cells (or fewer if there are not enough cells)
-  sampled_data <- cluster_data %>% sample_n(min(sample_size, nrow(cluster_data)))
-  
-  # Get the axis limits from the full dataset to ensure consistent axes
-  x_limits <- range(umap_data$umap_1, na.rm = TRUE)
-  y_limits <- range(umap_data$umap_2, na.rm = TRUE)
-  
-  # Create the KDE plot for the selected cluster category
-  kde_plot <- ggplot(sampled_data, aes(x = umap_1, y = umap_2)) +
-    geom_density_2d_filled(aes(fill = ..level..), alpha = 0.6) +
-    scale_fill_viridis_d() +  # Use the correct scale for discrete values
-    theme_minimal() +
-    labs(
-      title = paste("KDE of UMAP for Cluster:", cluster_name),
-      x = "\nUMAP 1",
-      y = "UMAP 2\n"
-    ) +
-    xlim(x_limits) +   # Set consistent X axis limits
-    ylim(y_limits)     # Set consistent Y axis limits
-  
-  # Save the plot as a PNG file with a cleaned-up filename
-  ggsave(
-    filename = paste0("UMAP_KDE_Cluster_", clean_cluster_name, ".png"),
-    plot = kde_plot,
-    width = 11,
-    height = 11,
-    units = "in",
-    dpi = 500
-  )
-  
-  # Inform the user of successful saving
-  message(paste("Plot saved as UMAP_KDE_Cluster_", clean_cluster_name, ".png", sep = ""))
+
+    # filter rows for the requested cluster
+    cluster_data <- umap_data %>% dplyr::filter(new_cluster_names == cluster_name)
+    
+    # print how many rows are available before any sampling
+    message("cells available in ", cluster_name, ": ", nrow(cluster_data))
+    
+    # if nothing to plot then return quietly
+    if (nrow(cluster_data) == 0) {
+        message("no cells found for cluster: ", cluster_name)
+        return(invisible(NULL))
+    }
+    
+    # remove rows with missing coordinates so kde does not warn
+    cluster_data <- cluster_data %>% dplyr::filter(!is.na(umap_1), !is.na(umap_2))
+    
+    # set a seed if given so the sample is reproducible
+    if (!is.null(seed)) set.seed(seed)
+    
+    # compute how many rows to take
+    n_to_take <- min(sample_size, nrow(cluster_data))
+    
+    # sample rows without replacement
+    sampled_data <- dplyr::slice_sample(cluster_data, n = n_to_take)
+    
+    # print how many rows will be plotted after sampling
+    message("cells plotted in ", cluster_name, ": ", nrow(sampled_data))
+    
+    # compute global axis limits from the full dataset for consistency
+    x_limits <- range(umap_data$umap_1, na.rm = TRUE)
+    y_limits <- range(umap_data$umap_2, na.rm = TRUE)
+    
+    # build the kde plot
+    kde_plot <- ggplot(sampled_data, aes(x = umap_1, y = umap_2)) +
+        geom_density_2d_filled(aes(fill = ..level..), alpha = 0.6) +
+        # you can use scale_fill_viridis_c() if you prefer continuous
+        scale_fill_viridis_d() +
+        theme_minimal() +
+        labs(
+            title = paste("KDE of UMAP for Cluster:", cluster_name),
+            x = "\nUMAP 1",
+            y = "UMAP 2\n"
+        ) +
+        xlim(x_limits) +
+        ylim(y_limits)
+    
+    # save the plot using the raw cluster name and the number of cells plotted
+    out_file <- paste0(
+        "UMAP_KDE_Cluster_",
+        gsub("[^A-Za-z0-9]+", "_", cluster_name),
+        "_N", nrow(sampled_data),"Seed", seed, ".png"
+    )
+    
+    ggsave(
+        filename = out_file,
+        plot = kde_plot,
+        width = 11,
+        height = 11,
+        units = "in",
+        dpi = 500
+    )
+    
+    # notify where it was saved
+    message("plot saved as ", out_file)
+    
+    # return the sampled data invisibly so you can inspect if needed
+    invisible(sampled_data)
 }
 
-# Get the unique values in the 'new_cluster_names' column
+# get unique cluster names
 cluster_categories <- unique(umap_data$new_cluster_names)
 
-# Loop through each cluster category and create the corresponding KDE plot
+# loop and plot each cluster
 for (category in cluster_categories) {
-  create_kde_plot_for_cluster(category, umap_data)
+    create_kde_plot_for_cluster(
+        cluster_name = category,
+        umap_data = umap_data,
+        sample_size = 500,
+        seed = 42
+    )
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #==============================================================
-#this part actually does the spike type
+#this part  does the spike type
+
+# Assuming you already have the Seurat object `RealBatchCorrectedBacherSeurat`
+# 1. Extract UMAP coordinates from Seurat object and convert to data frame
+umap_data <- Embeddings(RealBatchCorrectedBacherSeurat, "umap")
+umap_data <- as.data.frame(umap_data)  # Convert to data frame
+metadata <- RealBatchCorrectedBacherSeurat@meta.data
+# Bind all metadata columns to umap_data in the correct order
+umap_data <- cbind(
+  umap_data,
+  metadata[ match(rownames(umap_data), rownames(metadata)), ]
+)
+
+
+
 # Create a function to generate a single KDE plot for each spike category
-create_kde_plot_for_category <- function(spike_category) {
-  
-  # Filter data for the current spike category
-  category_data <- umap_data %>% filter(spike == spike_category)
-  
-  # Create the KDE plot for the selected category
-  kde_plot <- ggplot(category_data, aes(x = umap_1, y = umap_2)) +
-    geom_density_2d_filled(aes(fill = ..level..), alpha = 0.6) +
-    scale_fill_viridis_d() +  # Use the correct scale for discrete values
-    theme_minimal() +
-    labs(
-      title = paste("KDE of UMAP for Spike Category:", spike_category),
-      x = "\nUMAP 1",
-      y = "UMAP 2\n"
+# load dplyr and ggplot2 if not already loaded
+# library(dplyr)
+# library(ggplot2)
+create_kde_plot_for_category <- function(spike_category, n_cells = 500, seed = 314) {
+    # filter rows that belong to the given spike category
+    category_data <- umap_data %>% dplyr::filter(spike == spike_category)
+    
+    # print how many cells we have before sampling
+    message("cells available in ", spike_category, ": ", nrow(category_data))
+    
+    # if there is nothing to plot return quietly
+    if (nrow(category_data) == 0) {
+        message("no cells found for category: ", spike_category)
+        return(invisible(NULL))
+    }
+    
+    # set an optional seed for reproducibility if provided
+    if (!is.null(seed)) set.seed(seed)
+    
+    # choose how many to sample
+    # if fewer than n_cells exist we will keep them all
+    n_to_take <- min(n_cells, nrow(category_data))
+    
+    # sample without replacement to get a subset for plotting
+    category_sample <- dplyr::slice_sample(category_data, n = n_to_take)
+    
+    # drop rows with missing umap coordinates to avoid warnings
+    category_sample <- category_sample %>% dplyr::filter(!is.na(umap_1), !is.na(umap_2))
+    
+    # report how many will be plotted after cleaning
+    message("cells plotted in ", spike_category, ": ", nrow(category_sample))
+    
+    # build the kde plot on the sampled data
+    kde_plot <- ggplot(category_sample, aes(x = umap_1, y = umap_2)) +
+        geom_density_2d_filled(aes(fill = ..level..), alpha = 0.6) +
+        # note: ..level.. is continuous
+        # if you prefer a continuous viridis scale you can use scale_fill_viridis_c()
+        scale_fill_viridis_d() +
+        theme_minimal() +
+        labs(
+            title = paste("KDE of UMAP for Spike Category:", spike_category),
+            x = "\nUMAP 1",
+            y = "UMAP 2\n"
+        )
+    
+    # save with the category and the number of cells in the file name
+    out_file <- paste0(
+        "UMAP_KDE_Spike_Category_",
+        gsub("[^A-Za-z0-9]+", "_", spike_category),
+        "_N", nrow(category_sample),"Seed", seed, ".png"
     )
-  
-  # Save the plot as a PNG file
-  ggsave(
-    filename = paste0("UMAP_KDE_Spike_Category_", spike_category, ".png"),
-    plot = kde_plot,
-    width = 11,
-    height = 11,
-    units = "in",
-    dpi = 500
-  )
-  
-  # Inform the user of successful saving
-  message(paste("Plot saved as UMAP_KDE_Spike_Category_", spike_category, ".png", sep = ""))
+    
+    ggsave(
+        filename = out_file,
+        plot = kde_plot,
+        width = 11,
+        height = 11,
+        units = "in",
+        dpi = 500
+    )
+    
+    message("plot saved as ", out_file)
+    
+    # return the sampled data invisibly in case you want to inspect it later
+    #invisible(category_sample)
 }
+
+
 
 # Loop through each spike category and create the corresponding KDE plot
 for (category in spike_categories) {
