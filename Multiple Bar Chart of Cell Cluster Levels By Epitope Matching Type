@@ -73,6 +73,8 @@ ggplot(subset_summary, aes(x = new_cluster_names, y = percentage, fill = spike))
        x = "Cluster Names",
        y = "Percentage") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#----------------------------------------------------------------------------below is for significance
+
 
 # Create a new column to differentiate between SARS-CoV-2 Spike Specific and Random 500
 subset_metadata <- subset_metadata %>%
@@ -96,3 +98,70 @@ significance_results <- subset_metadata_filtered %>%
 
 # Print the results
 significance_results
+
+
+
+#------------------------------------------------------new function for p values 
+# simple two group comparison by cluster
+compare_spike_groups <- function(df, group_a, group_b,
+                                 cluster_col = "new_cluster_names",
+                                 group_col   = "spike",
+                                 digits = 6) {
+    # rename columns locally so we can write simple code
+    # this keeps your original data untouched
+    dat <- df[, c(cluster_col, group_col)]
+    names(dat) <- c("cluster", "group")
+    
+    # keep cluster display order if it is a factor
+    # otherwise keep order of first appearance
+    if (is.factor(dat$cluster)) {
+        clusters <- levels(dat$cluster)
+    } else {
+        clusters <- unique(dat$cluster)
+    }
+    
+    # check groups exist
+    if (!all(c(group_a, group_b) %in% unique(dat$group))) {
+        stop("one or both groups not found in the data")
+    }
+    
+    # counts for each group by cluster
+    countsA <- dat[dat$group == group_a, , drop = FALSE]
+    countsA <- as.data.frame(table(factor(countsA$cluster, levels = clusters)))
+    names(countsA) <- c("cluster", "countA")
+    
+    countsB <- dat[dat$group == group_b, , drop = FALSE]
+    countsB <- as.data.frame(table(factor(countsB$cluster, levels = clusters)))
+    names(countsB) <- c("cluster", "countB")
+    
+    # totals across clusters for each group
+    nA <- sum(countsA$countA)
+    nB <- sum(countsB$countB)
+    
+    # run two sample proportion test for each cluster
+    p_raw <- mapply(function(x1, x2) {
+        stats::prop.test(x = c(x1, x2), n = c(nA, nB))$p.value
+    }, countsA$countA, countsB$countB)
+    
+    # BH adjustment across clusters
+    p_adj <- p.adjust(p_raw, method = "BH")
+    
+    # print nice lines
+    cat("P values for", group_a, "vs", group_b, "by cluster\n")
+    for (i in seq_along(clusters)) {
+        cat(
+            clusters[i], ": p = ", signif(p_raw[i], digits),
+            ", BH adj p = ", signif(p_adj[i], digits), "\n", sep = ""
+        )
+    }
+    
+    # also return a small data frame invisibly if you want to capture it
+    invisible(data.frame(
+        cluster = clusters, group_a = group_a, group_b = group_b,
+        p = p_raw, p_adj = p_adj, stringsAsFactors = FALSE
+    ))
+}
+
+# example use with your subset
+# compare_spike_groups(subset_metadata, "Random 500", "SARS-CoV-2 Spike Specific")
+
