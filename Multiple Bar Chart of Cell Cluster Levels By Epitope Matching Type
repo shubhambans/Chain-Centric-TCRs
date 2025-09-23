@@ -1,3 +1,74 @@
+library(dplyr)
+library(stringdist)
+
+# Define the pattern to compare with
+pattern <- "CAGXNYGGSQGNLIF"
+
+# Define function to calculate minimum Levenshtein distance from the pattern for each part of the cdr3 sequence
+min_leven_distance <- function(cdr3, pattern) {
+    junctions <- unlist(strsplit(cdr3, "\\."))  # Split cdr3 sequence at the period (.)
+    distances <- sapply(junctions, function(j) stringdist(j, pattern, method = "lv"))
+    return(min(distances))
+}
+
+# Add CDR3_tra and CDR3_trb columns based on splitting at '.'
+RealBatchCorrectedBacherSeurat@meta.data <- RealBatchCorrectedBacherSeurat@meta.data %>%
+    mutate(
+        CDR3_tra = sapply(strsplit(cdr3, "\\."), `[`, 1),  # Extract part before the '.'
+        CDR3_trb = sapply(strsplit(cdr3, "\\."), `[`, 2),  # Extract part after the '.'
+        leven_meta = sapply(cdr3, min_leven_distance, pattern = pattern)  # Calculate min Levenshtein distance
+    )
+
+# Optionally, create a column to highlight cells based on Levenshtein distance threshold
+# RealBatchCorrectedBacherSeurat@meta.data$highlight <- ifelse(RealBatchCorrectedBacherSeurat@meta.data$leven_meta <= 3, "highlight", "normal")
+#--------
+library(dplyr)
+
+# Step 1: Collapse 'Epitope species' values for each unique 'CDR3', ensuring alphabetical order
+df_collapsed <- aggregate(`Epitope species` ~ CDR3, data = df, FUN = function(x) paste(sort(unique(x)), collapse = ", "))
+
+# Match and update 'epitopeSpecies' in the metadata based on either CDR3_tra or CDR3_trb
+RealBatchCorrectedBacherSeurat@meta.data$epitopeSpecies <- ifelse(
+    RealBatchCorrectedBacherSeurat@meta.data$CDR3_tra %in% df_collapsed$CDR3,
+    df_collapsed$`Epitope species`[match(RealBatchCorrectedBacherSeurat@meta.data$CDR3_tra, df_collapsed$CDR3)],
+    ifelse(
+        RealBatchCorrectedBacherSeurat@meta.data$CDR3_trb %in% df_collapsed$CDR3,
+        df_collapsed$`Epitope species`[match(RealBatchCorrectedBacherSeurat@meta.data$CDR3_trb, df_collapsed$CDR3)],
+        NA  # If neither matches, set to NA
+    )
+)
+
+# Add 'VDJmatch' column to metadata based on presence in VDJdb
+RealBatchCorrectedBacherSeurat@meta.data <- RealBatchCorrectedBacherSeurat@meta.data %>%
+    mutate(VDJmatch = ifelse(!is.na(epitopeSpecies), "Matched in VDJdb", "Not Matched in VDJdb"))
+
+# Step 2: Collapse 'Epitope gene' values for each unique 'CDR3', ensuring alphabetical order
+df_collapsed <- aggregate(`Epitope gene` ~ CDR3, data = df, FUN = function(x) paste(sort(unique(x)), collapse = ", "))
+
+# Match and insert the sorted, collapsed 'Epitope gene' values based on either CDR3_tra or CDR3_trb
+RealBatchCorrectedBacherSeurat@meta.data$`Epitope gene` <- ifelse(
+    RealBatchCorrectedBacherSeurat@meta.data$CDR3_tra %in% df_collapsed$CDR3,
+    df_collapsed$`Epitope gene`[match(RealBatchCorrectedBacherSeurat@meta.data$CDR3_tra, df_collapsed$CDR3)],
+    ifelse(
+        RealBatchCorrectedBacherSeurat@meta.data$CDR3_trb %in% df_collapsed$CDR3,
+        df_collapsed$`Epitope gene`[match(RealBatchCorrectedBacherSeurat@meta.data$CDR3_trb, df_collapsed$CDR3)],
+        NA  # If neither matches, set to NA
+    )
+)
+
+# Add the 'spike' column based on 'Epitope gene' and 'VDJmatch' in the metadata
+RealBatchCorrectedBacherSeurat@meta.data <- RealBatchCorrectedBacherSeurat@meta.data %>%
+    mutate(spike = case_when(
+        VDJmatch == "Not Matched in VDJdb" ~ "Not VDJdb Matched",  # If not matched in VDJdb
+        !grepl("SARS-CoV-2", epitopeSpecies, ignore.case = TRUE) ~ "Non SARS-CoV-2 Matched",  # If matched in VDJdb but not SARS-CoV-2
+        grepl("Spike", `Epitope gene`, ignore.case = TRUE) ~ "SARS-CoV-2 Spike Specific",  # If Epitope gene contains 'Spike'
+        TRUE ~ "SARS-CoV-2 Other Specific"  # If Epitope gene does not contain 'Spike'
+    ))
+
+# View the updated metadata of RealBatchCorrectedBacherSeurat
+head(RealBatchCorrectedBacherSeurat@meta.data)
+
+
 
 # Load necessary libraries
 library(Seurat)
