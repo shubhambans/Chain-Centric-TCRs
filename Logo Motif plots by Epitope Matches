@@ -97,3 +97,63 @@ for (spike_cat in spike_values) {
     }
 }
 
+
+
+second version 09/23/2025
+# Step 0: Randomly sample 4,500 cells from each spike status category (unchanged)
+set.seed(123)
+sampled_data <- CD4merge %>%
+    group_by(spike) %>%
+    slice_sample(n = 4500) %>%
+    ungroup() %>%
+    mutate(spike = factor(spike))  # ensure factors for comparisons
+
+# Step 1: Calculate the percentage of public cells for each spike status AND chain
+public_percentage <- sampled_data %>%
+    group_by(chain, spike) %>%
+    summarise(percentage_public = mean(sharing == "public") * 100, .groups = "drop")
+
+# Build all pairwise comparisons across the three x categories
+all_comparisons <- combn(levels(sampled_data$spike), 2, simplify = FALSE)
+
+# step 2 making the plot
+
+p <- ggplot(public_percentage, aes(x = spike, y = percentage_public, fill = spike)) +
+    geom_bar(stat = "identity", alpha = bar_alpha, fill = bar_fill_color) +
+    labs(x = x_axis_label, y = y_axis_label) +  # <- no title
+    theme(
+        plot.title = element_blank(),           # <- remove title
+        axis.text.x = element_text(
+            size = rel(0.97),                    # <- slightly smaller text
+            angle = angle_x_axis_text,
+            vjust = x_axis_text_vjust,
+            hjust = x_axis_text_hjust
+        ),
+        legend.position = "none"
+    ) +
+    facet_wrap(~ chain)
+
+
+# Step 3: Add significance lines with exact p-values for ALL pairwise comparisons WITHIN each facet
+# Use raw sampled_data with y scaled to percentage (0–100) so it matches the bar scale
+p <- p + geom_signif(
+    comparisons = all_comparisons,
+    data = sampled_data,
+    mapping = aes(x = spike, y = as.numeric(sharing == "public") * 100),
+    test = "t.test",
+    test.args = list(alternative = "two.sided", var.equal = FALSE),
+    step_increase = 0.1,
+    map_signif_level = FALSE,   # <- print exact p-values
+    color = "black",
+    size = 1
+)
+
+# Step 4: Save the plot (unchanged filename/dimensions)
+ggsave(
+    filename = "percentage_public_spike_graphfinal.png",
+    plot = p,
+    width = 17,
+    height = 14,
+    units = "in",
+    dpi = 300
+)
