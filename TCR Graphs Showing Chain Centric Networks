@@ -201,6 +201,12 @@ to.plot = rbind(multBTraJuncs, multATrbJuncs)
 #[1] 17647
 #length(unique(huNOT0$libid))
 #5[1] 46188
+# define species2 before first use
+to.plot$species2 = ifelse(to.plot$species == "CMV", "CMV", 
+						ifelse(to.plot$species == "EBV", "EBV",
+							ifelse(to.plot$species == "SARS-CoV-2", "SARS-CoV2",
+								ifelse(to.plot$species == "InfluenzaA", "InfluenzaA",
+								ifelse(to.plot$species == "HomoSapiens", "HomoSapiens", "other")))))
 sum(table(to.plot$species2)) # 24555 
 
 ## NB, (5354+8132)/54643 or ~25% huNOT0 junctions have TRA or TRB metaclones. Likewise, 17647/46188 or ~38% cells (libids) have TCRs that comprise TCR metaclones.
@@ -296,4 +302,3 @@ lower = DF$lower
 upper = DF$upper
 
 to.plot2 <- data.frame(label, mean, lower, upper)
-

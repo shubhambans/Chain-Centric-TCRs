@@ -22,7 +22,7 @@ CD4merge$`Epitope gene` <- df_collapsed$`Epitope gene`[match(CD4merge$junction, 
                                                     CD4merge_unexpanded$`Epitope gene`<-df_collapsed$`Epitope gene`[match(CD4merge_unexpanded$junction, df_collapsed$CDR3)]
 library(dplyr)
 #below is the confusing part....idk whether to use covid df or just df for df_collapsed
-#df menas that the epitope gene will be for all epitope species while covid df will be just for covid
+#df means that the epitope gene will be for all epitope species while covid df will be just for covid
 # Step 1: Collapse 'Epitope gene' values for each unique 'cdr3', ensuring alphabetical order
 df_collapsed <- aggregate(`Epitope gene` ~ CDR3, data = df, FUN = function(x) paste(sort(unique(x)), collapse = ", "))
 
@@ -40,4 +40,3 @@ CD4merge <- CD4merge %>%
 
 # View the updated CD4merge dataframe
 head(CD4merge)
-

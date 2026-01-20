@@ -71,6 +71,15 @@ RealBatchCorrectedBacherSeurat@meta.data <- RealBatchCorrectedBacherSeurat@meta.
 head(RealBatchCorrectedBacherSeurat@meta.data)
 #----------------------------------------------------------------end of setup code
 
+# Build UMAP metadata frame before plotting by cluster (used below).
+umap_data <- Embeddings(RealBatchCorrectedBacherSeurat, "umap")
+umap_data <- as.data.frame(umap_data)
+colnames(umap_data) <- c("umap_1", "umap_2")
+metadata <- RealBatchCorrectedBacherSeurat@meta.data
+umap_data <- cbind(
+  umap_data,
+  metadata[match(rownames(umap_data), rownames(metadata)), ]
+)
 
 
 
@@ -79,7 +88,8 @@ head(RealBatchCorrectedBacherSeurat@meta.data)
 
 
 
-#this part handles how to do it for the different clusters (make sure to match up with new names that we gave the orginal anotations)
+
+#this part handles how to do it for the different clusters (make sure to match up with new names that we gave the original annotations)
 # Create a function to generate a single KDE plot for each new_cluster_names category
 # it prints counts before and after sampling
 

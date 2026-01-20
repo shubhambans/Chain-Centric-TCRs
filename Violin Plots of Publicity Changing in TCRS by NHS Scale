@@ -1,4 +1,4 @@
-#ggsignif does nto show up unless axis limits changed
+#ggsignif does not show up unless axis limits changed
 
 library(dplyr)
 

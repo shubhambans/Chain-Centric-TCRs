@@ -18,4 +18,4 @@ ggplot(CD4_filtered, aes(x = Status, fill = sharing)) +
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 30, hjust = 1))  # Rotate x-axis labels
 
-#no significance caluclated 
+#no significance calculated 
