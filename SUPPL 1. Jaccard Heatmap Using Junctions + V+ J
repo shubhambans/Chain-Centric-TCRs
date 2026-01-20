@@ -58,7 +58,7 @@ run_jaccard <- function(df, chain_tag){
   # ---- plot -------------------------------------------------
   p <- ggplot(dfJ, aes(E1, E2, fill = Jac, label = label)) +
          geom_tile(colour = "black") +
-         scale_fill_gradientn(colours = c("white","red","dark red","grey"),
+         scale_fill_gradientn(colours = c("white","red","darkred","grey"),
                               values  = c(0,0.2,0.8,1),
                               limits  = c(0,1), na.value = "grey50",
                               breaks  = c(0,0.2,1),
@@ -84,4 +84,3 @@ run_jaccard <- function(df, chain_tag){
 # ============================================================
 run_jaccard(merged_df, "TRA")
 run_jaccard(merged_df, "TRB")
-

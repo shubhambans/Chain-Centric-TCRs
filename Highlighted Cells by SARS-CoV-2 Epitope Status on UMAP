@@ -1,4 +1,4 @@
-#this code will do th trick except for the overay. The overlay uses a rought outluine of cluster 2(Naive) which is then made transparent and overlaid
+#this code will do the trick except for the overlay. The overlay uses a rough outline of cluster 2 (Naive) which is then made transparent and overlaid
 
 library(dplyr)
 library(stringdist)
@@ -142,7 +142,6 @@ plot_title = "Non SARS-CoV-2 Matched Cells",
 filename = "UMAP_non_SARS-CoV-2_matched_graphfinal.png"
 ),
 list(
-spike_category = "Not VDJdb Matched",
 plot_title = "Not VDJdb Matched Cells",
 filename = "UMAP_not_VDJdb_matched_graphfinal.png"
 ),

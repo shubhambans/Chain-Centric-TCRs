@@ -1,5 +1,5 @@
 #do pseudotime first
-#red line is added artifically
+#red line is added artificially
 library(ggplot2)
 library(dplyr)
 

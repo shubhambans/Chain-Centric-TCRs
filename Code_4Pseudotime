@@ -30,8 +30,8 @@ ggplot(combined_seurat_object_bacher@meta.data, aes(x = pseudotime)) +
     labs(title = "Pseudotime Distribution of Cells (Entire Dataset)", 
          x = "Pseudotime", 
          y = "Density of Cells") +
-    theme_minimal()
-# Add the leven_meta column to the dataframe
+    theme_minimal()
+
 combined_seurat_object_bacher@meta.data <- combined_seurat_object_bacher@meta.data %>%
     mutate(leven_meta = sapply(cdr3, min_leven_distance, pattern = "CAGXNYGGSQGNLIF"))
 #combined_seurat_object@meta.data$highlight <- ifelse(combined_seurat_object@meta.data$leven_meta <= 3, "highlight", "normal")
