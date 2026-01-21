@@ -1,0 +1,25 @@
+# Load necessary libraries
+library(Seurat)
+library(patchwork)
+
+# Define the genes you want to plot
+genes_to_plot <- c("CCR7", "CD69", "CD38",
+                   "GZMA", "GZMB", "CREBRF",
+                   "BHLHE40", "NFKBID")
+
+# Generate a list of FeaturePlot objects for each gene
+feature_plots <- lapply(genes_to_plot, function(gene) {
+  FeaturePlot(
+    object = RealBatchCorrectedBacherSeurat,
+    features = gene,
+    cols = c("grey90", "blue"),
+    reduction = "umap"
+  )
+})
+
+# Combine the plots using patchwork to make a 3x3 grid
+# If number of genes is not a multiple of 3, adjust ncol
+final_plot <- wrap_plots(feature_plots, ncol = 3)
+
+# Show the final combined plot
+print(final_plot)
