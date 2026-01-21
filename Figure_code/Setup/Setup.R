@@ -75,6 +75,13 @@ theme_set(
 
 
 
+# ---------------------------------------------------------------------------
+# Load data files
+# ---------------------------------------------------------------------------
+# Download the data bundle from Box:
+# https://bri.box.com/s/ny65o2w9dukpt5ejvmc7nl1hl26ubicl
+# Then update the paths below to point at the downloaded `.RData` files.
+# ---------------------------------------------------------------------------
 #load in files (pre-existing)
 #files can be found in the GIT folder in BOX
 load("C:/Users/sbansal/Downloads/vdjdb09122024ALLHuman.RData")
