@@ -11,11 +11,11 @@ Prevalent α-Chain–Centric TCR Metaclones Shape Specificity and Focus Early SA
 
 Set | Source | Description
 --- | --- | ---
-Set 1 | VDJdb (VDJdb 26) | Human antigen-specific TCRs.
-Set 2 | Bacher et al. 23 | Enriched for SARS-CoV-2 antigen-specific T cells.
-Set 3 | Su et al. 23 | HC individuals.
-Set 4 | Su et al. 23 | COVID-19 + HC individuals.
-Set 5 | Combined 23–26 | Combined COVID-19 + HC individuals.
+Set 1 | VDJdb| Human antigen-specific TCRs.
+Set 2 | Bacher et al. | Enriched for SARS-CoV-2 antigen-specific T cells.
+Set 3 | Su et al.| HC individuals.
+Set 4 | Su et al.| COVID-19 + HC individuals.
+Set 5 | Combined | Combined COVID-19 + HC individuals.
 
 ## Figure code organization
 
