@@ -1,3 +1,5 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
 # Load necessary libraries
 library(Seurat)
 library(ggplot2)

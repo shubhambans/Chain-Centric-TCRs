@@ -1,3 +1,5 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
 library(monocle3)
 #have to load in CDS object
 # Plot the CDS object (cdsfull) with pseudotime as the color, without trajectory

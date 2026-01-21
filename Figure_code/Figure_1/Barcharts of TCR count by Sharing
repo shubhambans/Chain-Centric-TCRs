@@ -1,3 +1,5 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
 library(ggplot2)
 
 # Create the bar plot

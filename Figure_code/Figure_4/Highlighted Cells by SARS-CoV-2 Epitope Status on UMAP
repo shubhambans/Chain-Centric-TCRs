@@ -1,3 +1,5 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
 #this code will do the trick except for the overlay. The overlay uses a rough outline of cluster 2 (Naive) which is then made transparent and overlaid
 
 library(dplyr)

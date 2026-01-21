@@ -1,3 +1,5 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
 #ggsignif does not show up unless the axis limits are changed
 
 library(dplyr)

@@ -1,3 +1,5 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
 #the overlay of the random is added artically by cropping removing background and using powerpoint to color differently
 
 library(ggplot2)

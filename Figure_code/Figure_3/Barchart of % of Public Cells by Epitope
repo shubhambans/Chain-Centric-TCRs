@@ -1,3 +1,5 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
 
 # Step 1: Collapse 'Epitope gene' values for each unique 'cdr3', ensuring alphabetical order
 df_collapsed <- aggregate(`Epitope gene` ~ CDR3, data = df, FUN = function(x) paste(sort(unique(x)), collapse = ", "))

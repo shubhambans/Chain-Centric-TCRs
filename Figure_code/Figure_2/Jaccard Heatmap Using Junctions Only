@@ -1,3 +1,5 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
 #TRA
 #uses merged_df but we could instead shorten it so it just directly uses CD4merge, as that would ensure that any modifications to CD4 remain
 library(reshape2)
