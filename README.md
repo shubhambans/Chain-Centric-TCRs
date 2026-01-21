@@ -25,6 +25,4 @@ Set 5 | Combined 23–26 | Combined COVID-19 + HC individuals.
 - `Figure_code/Figure_4/`: Figure 4 scripts for T cell subset analysis and visualization (Set 2).
 - `Figure_code/Figure_5/`: Figure 5 scripts for pseudotime and mismatch analyses (Set 2).
 
-## Notes
 
-Many figure scripts are stored without file extensions. Open them in an editor as R scripts when needed.
