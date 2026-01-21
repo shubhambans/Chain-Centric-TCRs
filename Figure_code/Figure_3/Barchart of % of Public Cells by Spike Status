@@ -1,0 +1,58 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
+# Step 1: Collapse 'Epitope gene' values for each unique 'cdr3', ensuring alphabetical order
+df_collapsed <- aggregate(`Epitope gene` ~ CDR3, data = df, FUN = function(x) paste(sort(unique(x)), collapse = ", "))
+
+# Step 2: Match and insert the sorted, collapsed 'Epitope gene' values into CD4merge
+CD4merge$`Epitope gene` <- df_collapsed$`Epitope gene`[match(CD4merge$junction, df_collapsed$CDR3)]
+
+library(dplyr)
+
+# Add the 'spike' column based on the 'Epitope gene' column
+CD4merge <- CD4merge %>%
+    mutate(spike = case_when(
+        is.na(`Epitope gene`) ~ "Not Covid Specific",        # If Epitope gene is NA
+        grepl("Spike", `Epitope gene`, ignore.case = TRUE) ~ "Spike",  # If Epitope gene contains 'Spike'
+        TRUE ~ "Other"                            # If it's anything else
+    ))
+
+library(dplyr)
+library(ggplot2)
+library(ggsignif)
+
+# Customizable components based on GRAPHFINAL
+bar_fill_color <- "black"  # Default color of the bars
+bar_alpha <- 0.7  # Transparency of the bars
+plot_title <- "Percentage of Public Cells by Chain and Spike Status\n"  # Plot title with \n for spacing
+x_axis_label <- "\nSpike Status"  # X-axis label with \n for spacing
+y_axis_label <- "Percentage of Public Cells\n"  # Y-axis label with \n for spacing
+angle_x_axis_text <- 45  # Angle of the x-axis text
+x_axis_text_hjust <- 1  # Horizontal justification of the x-axis text
+x_axis_text_vjust <- 1  # Vertical justification of the x-axis text
+
+# Step 1: Calculate the percentage of public cells for each combination of 'chain' and 'spike'
+public_percentage_spike_chain <- subset(CD4merge, spike != "Not Covid Specific") %>%
+    group_by(chain, spike) %>%
+    summarise(percentage_public = mean(sharing == "public") * 100)
+
+# Step 2: Create the bar plot using the summarized data
+p <- ggplot(public_percentage_spike_chain, aes(x = spike, y = percentage_public, fill = spike)) +
+    geom_bar(stat = "identity", alpha = bar_alpha, fill = bar_fill_color) +  # Bar settings
+    labs(title = plot_title, x = x_axis_label, y = y_axis_label) +  # Labels for title and axes
+    facet_wrap(~ chain) +  # Facet by chain
+    theme(
+        plot.title = element_text(hjust = 0.5),  # Center the title
+        axis.text.x = element_text(angle = angle_x_axis_text, vjust = x_axis_text_vjust, hjust = x_axis_text_hjust),  # X-axis text formatting
+        legend.position = "none"  # Remove the legend
+    )
+
+# Step 3: Add significance lines using the raw data
+p <- p + geom_signif(
+    comparisons = list(c("Spike", "Other")),  # Comparing "Spike" vs "Other"
+    data = subset(CD4merge, spike != "Not Covid Specific"),  # Using raw data for statistical testing
+    aes(x = spike, y = as.numeric(sharing == "public")),  # Use raw data for comparison
+    map_signif_level = TRUE, test = "t.test", step_increase = 0.1, color = "black", size = 1
+)
+
+# Save the plot as a square image (17x17 inches) with GRAPHFINAL dimensions
+ggsave("publicity_by_chain_spike_graphfinal.png", plot = p, width = 11, height = 11, units = "in", dpi = 300)

@@ -1,0 +1,65 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
+#need monocle library installed
+library(Seurat)
+library(monocle3)
+library(SeuratWrappers)
+library(ggplot2)
+
+
+
+
+combined_seurat_object_bacher<-JoinLayers(RealBatchCorrectedBacherSeurat_bacher)
+cds_full <- as.cell_data_set(combined_seurat_object_bacher)
+
+# Step 2: Preprocess the data and reduce dimensions using PCA
+cds_full <- preprocess_cds(cds_full, num_dim = 50)
+
+# Step 3: Perform clustering (if needed) and learn the trajectory
+cds_full <- cluster_cells(cds_full)
+cds_full <- learn_graph(cds_full)
+#cds <- learn_graph(cds, learn_graph_control=list(ncenter=1000, minimal_branch_len = 20))
+
+# Step 4: Order the cells in pseudotime
+cds_full <- order_cells(cds_full)
+
+# Step 5: Add the pseudotime information back to the Seurat metadata
+combined_seurat_object_bacher@meta.data$pseudotime <- pseudotime(cds_full)
+
+# Step 6: Plot the pseudotime distribution of the entire dataset
+ggplot(combined_seurat_object_bacher@meta.data, aes(x = pseudotime)) +
+    geom_density(fill = "lightblue", color = "blue", alpha = 0.7) +  # Smoothed curve
+    labs(title = "Pseudotime Distribution of Cells (Entire Dataset)", 
+         x = "Pseudotime", 
+         y = "Density of Cells") +
+    theme_minimal()
+
+combined_seurat_object_bacher@meta.data <- combined_seurat_object_bacher@meta.data %>%
+    mutate(leven_meta = sapply(cdr3, min_leven_distance, pattern = "CAGXNYGGSQGNLIF"))
+#combined_seurat_object@meta.data$highlight <- ifelse(combined_seurat_object@meta.data$leven_meta <= 3, "highlight", "normal")
+
+#orrrr if you do not want to calculate new pseudotime values please use below
+# Load necessary library
+library(Seurat)
+
+# Read the Monocle metadata CSV file
+monocle_metadata <- read.csv("C:/Users/super/OneDrive/Desktop/Research-Surface/monocleMetadata.csv", stringsAsFactors = FALSE)
+
+# Ensure the barcode column is correctly named
+colnames(monocle_metadata) <- tolower(colnames(monocle_metadata))  # Standardize column names
+colnames(RealBatchCorrectedBacherSeurat@meta.data) <- tolower(colnames(RealBatchCorrectedBacherSeurat@meta.data))
+
+# Merge pseudotime into Seurat metadata based on matching barcodes
+RealBatchCorrectedBacherSeurat@meta.data <- merge(
+  RealBatchCorrectedBacherSeurat@meta.data, 
+  monocle_metadata[, c("barcode", "pseudotime")], 
+  by = "barcode", 
+  all.x = TRUE
+)
+
+# Ensure rownames are set correctly after merge
+rownames(RealBatchCorrectedBacherSeurat@meta.data) <- RealBatchCorrectedBacherSeurat@meta.data$barcode
+
+# Check if pseudotime was successfully added
+head(RealBatchCorrectedBacherSeurat@meta.data)
+

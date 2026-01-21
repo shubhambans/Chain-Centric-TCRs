@@ -19,12 +19,11 @@ Set 5 | Combined 23–26 | Combined COVID-19 + HC individuals.
 
 ## Figure code organization
 
-- `Figure_code/Figure_1_Set1_Set3/`: Figure 1 scripts for chain-centric frequencies and metaclone properties (Sets 1 & 3).
-- `Figure_code/Figure_2_Set1/`: Figure 2 scripts for multi-specificity overlap analyses (Set 1).
-- `Figure_code/Figure_3_Set4_Set5/`: Figure 3 scripts for COVID-19/publicity analyses and motif plots (Sets 4 & 5).
-- `Figure_code/Figure_4_Set2/`: Figure 4 scripts for T cell subset analysis and visualization (Set 2).
-- `Figure_code/Figure_5_Set2/`: Figure 5 scripts for pseudotime and mismatch analyses (Set 2).
-- `Figure_code/Setup/`: shared setup helpers (loading, preprocessing, epitope/spike annotations).
+- `Figure_code/Figure_1/`: Figure 1 scripts for chain-centric frequencies and metaclone properties (Sets 1 & 3).
+- `Figure_code/Figure_2/`: Figure 2 scripts for multi-specificity overlap analyses (Set 1).
+- `Figure_code/Figure_3/`: Figure 3 scripts for COVID-19/publicity analyses and motif plots (Sets 4 & 5).
+- `Figure_code/Figure_4/`: Figure 4 scripts for T cell subset analysis and visualization (Set 2).
+- `Figure_code/Figure_5/`: Figure 5 scripts for pseudotime and mismatch analyses (Set 2).
 
 ## Notes
 

@@ -1,0 +1,60 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
+# Load necessary libraries
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+
+# Define the genes and the custom x-axis labels
+genes <- c("CCR7", "SELL", "IFNG", "GZMB")
+x_axis_labels <- c("Metaclone", "1", "2", "3", "4", "5")
+
+# Initialize an empty data frame to store the average expressions for all genes
+avg_expr_df <- data.frame()
+
+# Loop over each gene to calculate average expression and combine the results into a single data frame
+for (gene in genes) {
+    avg_expression <- AverageExpression(RealBatchCorrectedBacherSeurat, features = gene, group.by = "leven_meta")
+    avg_expr_data <- avg_expression$RNA[gene, ]
+    
+    # Convert to data frame and format
+    temp_df <- data.frame(
+        leven_meta = names(avg_expr_data),
+        avg_expr = as.numeric(avg_expr_data),
+        gene = gene
+    )
+    
+    # Remove the first character from leven_meta, convert to numeric, and filter for 5 or fewer
+    temp_df$leven_meta <- as.numeric(sub("^.", "", temp_df$leven_meta))
+    temp_df$leven_meta<-(temp_df$leven_meta-1)
+    temp_df <- subset(temp_df, leven_meta <= 5)
+    
+    # Combine with the main data frame
+    avg_expr_df <- rbind(avg_expr_df, temp_df)
+}
+
+# Modify the leven_meta column for custom x-axis labeling
+avg_expr_df$leven_meta <- factor(avg_expr_df$leven_meta, levels = 0:5, labels = x_axis_labels)
+
+# Set the gene column as a factor with a specified order to control facet order
+avg_expr_df$gene <- factor(avg_expr_df$gene, levels = c("CCR7", "SELL", "IFNG", "GZMB"))
+
+# Plot with GRAPHFINAL formatting
+ggplot(avg_expr_df, aes(x = leven_meta, y = avg_expr, fill = gene)) +
+    geom_bar(stat = "identity", position = "dodge", alpha = 0.7) +  # Bar plot with dodge for separation by gene
+    labs(
+        title = "Average Expression of Selected Genes\n",
+        x = "\nMismatches",  # x-axis label
+        y = "Average Expression\n"  # y-axis label
+    ) +
+    facet_wrap(~ gene, ncol = 2, scales = "free_y") +  # Facet by gene in two columns for specific layout
+    scale_fill_manual(values = c("steelblue", "coral", "seagreen", "goldenrod")) +  # Set custom colors for each gene
+    theme(
+        plot.title = element_text(hjust = 0.5),  # Center the title
+        axis.text.x = element_text(angle = 45, hjust = 1),  # X-axis text angle
+        legend.position = "none"  # Remove legend if not needed
+    ) +
+    geom_text(aes(label = round(avg_expr, 2)), position = position_dodge(width = 0.9), vjust = -0.3)  # Add labels to bars
+
+# Save the plot as an image with GRAPHFINAL dimensions (17x17 inches)
+ggsave("gene_expression_graphfinal.png", width = 17, height = 17, units = "in", dpi = 300)

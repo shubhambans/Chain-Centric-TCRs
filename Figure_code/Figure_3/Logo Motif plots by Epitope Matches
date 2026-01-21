@@ -1,0 +1,102 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
+library(ggseqlogo)
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+
+# Get all unique values in the spike column
+spike_values <- unique(CD4merge$spike)
+
+# Loop over each unique spike category
+for (spike_cat in spike_values) {
+    # Filter TRA sequences for the current spike category
+    tra_sequences <- CD4merge %>% 
+        filter(spike == spike_cat, chain == "TRA")
+    
+    # Get total TRA sequences for percentage calculation
+    total_tra_ref <- nrow(tra_sequences)
+    
+    # Get the top 5 most frequent junction lengths
+    top_lengths_tra <- names(sort(table(nchar(tra_sequences$junction)), decreasing = TRUE)[1:5])
+    
+    # Select only the top 3 lengths for plotting
+    top_lengths_tra <- as.numeric(top_lengths_tra[1:3])
+    
+    # Create a list to store motif plots for TRA
+    tra_plots <- list()
+    
+    # Generate motif plots for TRA
+    for (length in top_lengths_tra) {
+        tra_subset <- tra_sequences %>% filter(nchar(junction) == length)
+        
+        # Ensure we have enough sequences
+        if (nrow(tra_subset) < 10) next  
+        
+        # Calculate percentage correctly
+        percentage <- round((nrow(tra_subset) / total_tra_ref) * 100, 2)
+        
+        # Generate motif plot
+        p <- ggseqlogo(tra_subset$junction, method = "bits") +
+            ggtitle(paste("TRA Motif - Spike:", spike_cat, "- Length", length, 
+                          "\n(", percentage, "% of TRA sequences in", spike_cat, ")")) +
+            theme_minimal()
+        
+        # Store plot
+        tra_plots[[as.character(length)]] <- p
+    }
+    
+    # Save TRA figure
+    if (length(tra_plots) > 0) {
+        tra_filename <- paste0("spike_", gsub(" ", "_", spike_cat), "_TRA.png")
+        png(tra_filename, width = 1200, height = 800)
+        grid.arrange(grobs = tra_plots, ncol = 1)
+        dev.off()
+    }
+    
+    # --- TRB Processing ---
+    trb_sequences <- CD4merge %>%
+        filter(barcode %in% tra_sequences$barcode, chain == "TRB")
+    
+    # Get total TRB sequences across all junction lengths (fixed calculation)
+    total_trb_ref <- nrow(trb_sequences)
+    
+    # Get the top 5 most frequent junction lengths in TRB
+    top_lengths_trb <- names(sort(table(nchar(trb_sequences$junction)), decreasing = TRUE)[1:5])
+    
+    # Select only the top 3 lengths for plotting
+    top_lengths_trb <- as.numeric(top_lengths_trb[1:3])
+    
+    # Create a list to store motif plots for TRB
+    trb_plots <- list()
+    
+    # Generate motif plots for TRB
+    for (length in top_lengths_trb) {
+        trb_subset <- trb_sequences %>% filter(nchar(junction) == length)
+        
+        # Ensure we have enough sequences
+        if (nrow(trb_subset) < 10) next  
+        
+        # Calculate percentage correctly
+        percentage <- round((nrow(trb_subset) / total_trb_ref) * 100, 2)
+        
+        # Generate motif plot
+        p <- ggseqlogo(trb_subset$junction, method = "bits") +
+            ggtitle(paste("TRB Motif - Spike:", spike_cat, "- Length", length, 
+                          "\n(", percentage, "% of TRB sequences in", spike_cat, ")")) +
+            theme_minimal()
+        
+        # Store plot
+        trb_plots[[as.character(length)]] <- p
+    }
+    
+    # Save TRB figure
+    if (length(trb_plots) > 0) {
+        trb_filename <- paste0("spike_", gsub(" ", "_", spike_cat), "_TRB.png")
+        png(trb_filename, width = 1200, height = 800)
+        grid.arrange(grobs = trb_plots, ncol = 1)
+        dev.off()
+    }
+}
+
+

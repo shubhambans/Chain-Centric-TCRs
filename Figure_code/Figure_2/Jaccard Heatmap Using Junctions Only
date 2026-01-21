@@ -1,0 +1,164 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
+#TRA
+#uses merged_df but we could instead shorten it so it just directly uses CD4merge, as that would ensure that any modifications to CD4 remain
+library(reshape2)
+library(ggplot2)
+
+# Clean and filter the data
+merged_df$epitope <- gsub("HIV-1", "HIV", merged_df$epitope)
+merged_df$epitope <- gsub("Homo sapiens", "HomoSapien", merged_df$epitope)
+CD4merge <- merged_df %>%
+    filter(grepl("CD4", cell_type, ignore.case = TRUE))
+CD4merge <- subset(CD4merge, chain == "TRA")
+
+# Step 1: Create the binary matrix
+all_epitopes <- unique(unlist(strsplit(as.character(CD4merge$epitope), ", ")))
+
+# Initialize binary_data with all zeros
+binary_data <- matrix(0, nrow = nrow(CD4merge), ncol = length(all_epitopes))
+colnames(binary_data) <- all_epitopes
+
+for (i in 1:nrow(CD4merge)) {
+    epitopes <- unlist(strsplit(as.character(CD4merge$epitope[i]), ", "))
+    binary_data[i, epitopes] <- 1
+}
+
+# Convert binary_data to data.frame
+binary_data <- as.data.frame(binary_data)
+
+# Step 2: Subset the binary data
+epitopes_to_include <- c("UNKNOWN", "EBV", "YFV", "CMV", "InfluenzaA", "HomoSapiens", "SARS-CoV-2", "HIV", "HCV")
+binary_data_subset <- binary_data[, epitopes_to_include, drop = FALSE]
+
+# Step 3: Calculate Jaccard Index
+jaccard_index <- function(a, b) {
+    sum(a & b) / sum(a | b)
+}
+
+jaccard_matrix <- matrix(0, ncol = length(epitopes_to_include), nrow = length(epitopes_to_include))
+colnames(jaccard_matrix) <- epitopes_to_include
+rownames(jaccard_matrix) <- epitopes_to_include
+
+for (i in 1:length(epitopes_to_include)) {
+    for (j in 1:length(epitopes_to_include)) {
+        if (i >= j) {  
+            jaccard_matrix[i, j] <- jaccard_index(binary_data_subset[[i]], binary_data_subset[[j]])
+        }
+    }
+}
+
+# Reshape for ggplot
+jaccard_df <- melt(jaccard_matrix)
+colnames(jaccard_df) <- c("Epitope1", "Epitope2", "JaccardIndex")
+jaccard_df <- subset(jaccard_df, as.integer(Epitope1) >= as.integer(Epitope2))
+
+# Step 4: Plot the heatmap
+p2 <- ggplot(data = jaccard_df, aes(x = Epitope1, y = Epitope2, fill = JaccardIndex, label = round(JaccardIndex, 2))) + 
+    geom_tile(color = "black") +  # Add border around tiles
+    scale_fill_gradientn(
+        colors = c("white", "red", "darkred", "grey"),
+        values = c(0, 0.2, 0.8, 1),
+        limits = c(0, 1),
+        na.value = "grey50",
+        breaks = c(0, 0.2, 1),
+        labels = c("0", "0.2", "1"),
+        name = "Jaccard Index"  # Set the legend title
+    ) + 
+    guides(fill = guide_colorbar(title.position = "top", title.hjust = 0.5)) +
+    guides(fill = guide_colorbar(label = FALSE)) +
+    geom_text(color = "black", size = 6, fontface = "bold") + 
+    theme(
+        axis.text.x = element_text(angle = 70, hjust = 1, size = 25, face = "bold"),  # Bold x-axis text
+        axis.text.y = element_text(size = 25, face = "bold"),  # Bold y-axis text
+        axis.title.x = element_blank(),  # Remove x-axis label
+        axis.title.y = element_blank(),  # Remove y-axis label
+        plot.title = element_text(size = 14, face = "bold")
+    ) +
+    labs(title = NULL, caption = "TRA")  # No title, only caption
+
+# Step 5: Save the plot
+ggsave("jaccard_index_heatmap_with_labels.png", plot = p2, width = 13, height = 10, units = "in", dpi = 300)
+
+#========================================================================================================================================
+
+#TRB
+#uses merged_df but we could instead shorten it so it just directly uses CD4merge, as that would ensure that any modifications to CD4 remain
+
+library(reshape2)
+library(ggplot2)
+
+# Clean and filter the data
+merged_df$epitope <- gsub("HIV-1", "HIV", merged_df$epitope)
+merged_df$epitope <- gsub("Homo sapiens", "HomoSapien", merged_df$epitope)
+CD4merge <- merged_df %>%
+    filter(grepl("CD4", cell_type, ignore.case = TRUE))
+CD4merge <- subset(CD4merge, chain == "TRB")
+
+# Step 1: Create the binary matrix
+all_epitopes <- unique(unlist(strsplit(as.character(CD4merge$epitope), ", ")))
+
+# Initialize binary_data with all zeros
+binary_data <- matrix(0, nrow = nrow(CD4merge), ncol = length(all_epitopes))
+colnames(binary_data) <- all_epitopes
+
+for (i in 1:nrow(CD4merge)) {
+    epitopes <- unlist(strsplit(as.character(CD4merge$epitope[i]), ", "))
+    binary_data[i, epitopes] <- 1
+}
+
+# Convert binary_data to data.frame
+binary_data <- as.data.frame(binary_data)
+
+# Step 2: Subset the binary data
+epitopes_to_include <- c("UNKNOWN", "EBV", "YFV", "CMV", "InfluenzaA", "HomoSapiens", "SARS-CoV-2", "HIV", "HCV")
+binary_data_subset <- binary_data[, epitopes_to_include, drop = FALSE]
+
+# Step 3: Calculate Jaccard Index
+jaccard_index <- function(a, b) {
+    sum(a & b) / sum(a | b)
+}
+
+jaccard_matrix <- matrix(0, ncol = length(epitopes_to_include), nrow = length(epitopes_to_include))
+colnames(jaccard_matrix) <- epitopes_to_include
+rownames(jaccard_matrix) <- epitopes_to_include
+
+for (i in 1:length(epitopes_to_include)) {
+    for (j in 1:length(epitopes_to_include)) {
+        if (i >= j) {  
+            jaccard_matrix[i, j] <- jaccard_index(binary_data_subset[[i]], binary_data_subset[[j]])
+        }
+    }
+}
+
+# Reshape for ggplot
+jaccard_df <- melt(jaccard_matrix)
+colnames(jaccard_df) <- c("Epitope1", "Epitope2", "JaccardIndex")
+jaccard_df <- subset(jaccard_df, as.integer(Epitope1) >= as.integer(Epitope2))
+
+# Step 4: Plot the heatmap
+p2 <- ggplot(data = jaccard_df, aes(x = Epitope1, y = Epitope2, fill = JaccardIndex, label = round(JaccardIndex, 2))) + 
+    geom_tile(color = "black") +  # Add border around tiles
+    scale_fill_gradientn(
+        colors = c("white", "red", "darkred", "grey"),
+        values = c(0, 0.2, 0.8, 1),
+        limits = c(0, 1),
+        na.value = "grey50",
+        breaks = c(0, 0.2, 1),
+        labels = c("0", "0.2", "1"),
+        name = "Jaccard Index"  # Set the legend title
+    ) + 
+    guides(fill = guide_colorbar(title.position = "top", title.hjust = 0.5)) +
+    guides(fill = guide_colorbar(label = FALSE)) +
+    geom_text(color = "black", size = 6, fontface = "bold") + 
+    theme(
+        axis.text.x = element_text(angle = 70, hjust = 1, size = 25, face = "bold"),  # Bold x-axis text
+        axis.text.y = element_text(size = 25, face = "bold"),  # Bold y-axis text
+        axis.title.x = element_blank(),  # Remove x-axis label
+        axis.title.y = element_blank(),  # Remove y-axis label
+        plot.title = element_text(size = 14, face = "bold")
+    ) +
+    labs(title = NULL, caption = "TRB")  # No title, only caption
+
+# Step 5: Save the plot
+ggsave("jaccard_index_heatmap_with_labels.png", plot = p2, width = 13, height = 10, units = "in", dpi = 300)

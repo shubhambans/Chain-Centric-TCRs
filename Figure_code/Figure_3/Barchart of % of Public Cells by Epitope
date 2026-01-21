@@ -1,0 +1,93 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
+
+# Step 1: Collapse 'Epitope gene' values for each unique 'cdr3', ensuring alphabetical order
+df_collapsed <- aggregate(`Epitope gene` ~ CDR3, data = df, FUN = function(x) paste(sort(unique(x)), collapse = ", "))
+
+# Step 2: Match and insert the sorted, collapsed 'Epitope gene' values into CD4merge
+CD4merge$`Epitope gene` <- df_collapsed$`Epitope gene`[match(CD4merge$junction, df_collapsed$CDR3)]
+
+# View the updated CD4merge dataframe
+head(CD4merge)
+
+library(dplyr)
+
+# Add the 'spike' column based on the 'Epitope gene' column
+CD4merge <- CD4merge %>%
+    mutate(spike = case_when(
+        is.na(`Epitope gene`) ~ "Not Covid Specific",        # If Epitope gene is NA
+        grepl("Spike", `Epitope gene`, ignore.case = TRUE) ~ "Covid Specific Spike",  # If Epitope gene contains 'Spike'
+        TRUE ~ "Covid Specific Other"                            # If it's anything else
+    ))
+# Load necessary libraries
+library(dplyr)
+library(ggplot2)
+library(ggsignif)
+
+# Customizable components based on GRAPHFINAL
+bar_fill_color <- "black"  # Color of the bars
+bar_alpha <- 0.7  # Transparency of the bars
+plot_title <- "Percentage of Public Cells by Spike Status\n"  # Plot title with \n for spacing
+x_axis_label <- "\nSpike Status"  # X-axis label with \n for spacing
+y_axis_label <- "Percentage of Public Cells (%)\n"  # Y-axis label with \n for spacing
+angle_x_axis_text <- 45  # Angle of the x-axis text
+x_axis_text_hjust <- 1  # Horizontal justification of the x-axis text
+x_axis_text_vjust <- 1  # Vertical justification of the x-axis text
+
+# Step 0: Randomly sample 4,500 cells from each spike status category
+# This ensures each category is equally represented
+set.seed(123)  # For reproducibility; you can choose any seed value
+sampled_data <- CD4merge %>%
+    group_by(spike) %>%
+    slice_sample(n = 4500) %>%  # Randomly sample 4,500 cells per category
+    ungroup()
+
+# **Note**: 
+# - Ensure that each spike category has at least 4,500 cells. 
+# - If some categories have fewer than 4,500 cells, consider using `replace = TRUE` within `slice_sample()` to allow sampling with replacement:
+#   `slice_sample(n = 4500, replace = TRUE)`
+
+# Step 1: Calculate the percentage of public cells for each spike status based on sampled data
+public_percentage <- sampled_data %>%
+    group_by(spike) %>%
+    summarise(percentage_public = mean(sharing == "public") * 100) %>%
+    ungroup()
+
+# Step 2: Create the bar plot using the summarized sampled data
+p <- ggplot(public_percentage, aes(x = spike, y = percentage_public, fill = spike)) +
+    geom_bar(stat = "identity", alpha = bar_alpha, fill = bar_fill_color) +  # Bar settings
+    labs(title = plot_title, x = x_axis_label, y = y_axis_label) +  # Labels for title and axes
+    theme(
+        plot.title = element_text(hjust = 0.5),  # Center the title
+        axis.text.x = element_text(
+            angle = angle_x_axis_text, 
+            vjust = x_axis_text_vjust, 
+            hjust = x_axis_text_hjust
+        ),  # X-axis text formatting
+        legend.position = "none"  # Remove the legend
+    )
+
+# Step 3: Add significance lines using the sampled data
+# Comparing "Covid Specific Spike" vs "Covid Specific Other"
+# **Ensure that these category names exactly match those in your 'spike' variable**
+p <- p + geom_signif(
+    comparisons = list(c("Covid Specific Spike", "Covid Specific Other")),  # Define the comparisons
+    data = sampled_data %>% filter(spike %in% c("Covid Specific Spike", "Covid Specific Other")),  # Filter relevant data
+    mapping = aes(x = spike, y = as.numeric(sharing == "public")),  # Mapping aesthetics
+    test = "t.test",  # Type of statistical test
+    step_increase = 0.1,  # Vertical step increase for the significance lines
+    map_signif_level = TRUE,  # Automatically map significance levels
+    color = "black",  # Color of the significance lines
+    size = 1  # Thickness of the significance lines
+)
+
+# Step 4: Save the plot with specified dimensions (17x17 inches) and resolution
+ggsave(
+    filename = "percentage_public_spike_graphfinal.png", 
+    plot = p, 
+    width = 11, 
+    height = 14, 
+    units = "in", 
+    dpi = 300
+)
+

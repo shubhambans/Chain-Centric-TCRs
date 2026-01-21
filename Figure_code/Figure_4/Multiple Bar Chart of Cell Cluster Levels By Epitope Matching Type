@@ -1,0 +1,240 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
+library(dplyr)
+library(stringdist)
+
+# Define the pattern to compare with
+pattern <- "CAGXNYGGSQGNLIF"
+
+# Define function to calculate minimum Levenshtein distance from the pattern for each part of the cdr3 sequence
+min_leven_distance <- function(cdr3, pattern) {
+    junctions <- unlist(strsplit(cdr3, "\\."))  # Split cdr3 sequence at the period (.)
+    distances <- sapply(junctions, function(j) stringdist(j, pattern, method = "lv"))
+    return(min(distances))
+}
+
+# Add CDR3_tra and CDR3_trb columns based on splitting at '.'
+RealBatchCorrectedBacherSeurat@meta.data <- RealBatchCorrectedBacherSeurat@meta.data %>%
+    mutate(
+        CDR3_tra = sapply(strsplit(cdr3, "\\."), `[`, 1),  # Extract part before the '.'
+        CDR3_trb = sapply(strsplit(cdr3, "\\."), `[`, 2),  # Extract part after the '.'
+        leven_meta = sapply(cdr3, min_leven_distance, pattern = pattern)  # Calculate min Levenshtein distance
+    )
+
+# Optionally, create a column to highlight cells based on Levenshtein distance threshold
+# RealBatchCorrectedBacherSeurat@meta.data$highlight <- ifelse(RealBatchCorrectedBacherSeurat@meta.data$leven_meta <= 3, "highlight", "normal")
+#--------
+library(dplyr)
+
+# Step 1: Collapse 'Epitope species' values for each unique 'CDR3', ensuring alphabetical order
+df_collapsed <- aggregate(`Epitope species` ~ CDR3, data = df, FUN = function(x) paste(sort(unique(x)), collapse = ", "))
+
+# Match and update 'epitopeSpecies' in the metadata based on either CDR3_tra or CDR3_trb
+RealBatchCorrectedBacherSeurat@meta.data$epitopeSpecies <- ifelse(
+    RealBatchCorrectedBacherSeurat@meta.data$CDR3_tra %in% df_collapsed$CDR3,
+    df_collapsed$`Epitope species`[match(RealBatchCorrectedBacherSeurat@meta.data$CDR3_tra, df_collapsed$CDR3)],
+    ifelse(
+        RealBatchCorrectedBacherSeurat@meta.data$CDR3_trb %in% df_collapsed$CDR3,
+        df_collapsed$`Epitope species`[match(RealBatchCorrectedBacherSeurat@meta.data$CDR3_trb, df_collapsed$CDR3)],
+        NA  # If neither matches, set to NA
+    )
+)
+
+# Add 'VDJmatch' column to metadata based on presence in VDJdb
+RealBatchCorrectedBacherSeurat@meta.data <- RealBatchCorrectedBacherSeurat@meta.data %>%
+    mutate(VDJmatch = ifelse(!is.na(epitopeSpecies), "Matched in VDJdb", "Not Matched in VDJdb"))
+
+# Step 2: Collapse 'Epitope gene' values for each unique 'CDR3', ensuring alphabetical order
+df_collapsed <- aggregate(`Epitope gene` ~ CDR3, data = df, FUN = function(x) paste(sort(unique(x)), collapse = ", "))
+
+# Match and insert the sorted, collapsed 'Epitope gene' values based on either CDR3_tra or CDR3_trb
+RealBatchCorrectedBacherSeurat@meta.data$`Epitope gene` <- ifelse(
+    RealBatchCorrectedBacherSeurat@meta.data$CDR3_tra %in% df_collapsed$CDR3,
+    df_collapsed$`Epitope gene`[match(RealBatchCorrectedBacherSeurat@meta.data$CDR3_tra, df_collapsed$CDR3)],
+    ifelse(
+        RealBatchCorrectedBacherSeurat@meta.data$CDR3_trb %in% df_collapsed$CDR3,
+        df_collapsed$`Epitope gene`[match(RealBatchCorrectedBacherSeurat@meta.data$CDR3_trb, df_collapsed$CDR3)],
+        NA  # If neither matches, set to NA
+    )
+)
+
+# Add the 'spike' column based on 'Epitope gene' and 'VDJmatch' in the metadata
+RealBatchCorrectedBacherSeurat@meta.data <- RealBatchCorrectedBacherSeurat@meta.data %>%
+    mutate(spike = case_when(
+        VDJmatch == "Not Matched in VDJdb" ~ "Not VDJdb Matched",  # If not matched in VDJdb
+        !grepl("SARS-CoV-2", epitopeSpecies, ignore.case = TRUE) ~ "Non SARS-CoV-2 Matched",  # If matched in VDJdb but not SARS-CoV-2
+        grepl("Spike", `Epitope gene`, ignore.case = TRUE) ~ "SARS-CoV-2 Spike Specific",  # If Epitope gene contains 'Spike'
+        TRUE ~ "SARS-CoV-2 Other Specific"  # If Epitope gene does not contain 'Spike'
+    ))
+
+# View the updated metadata of RealBatchCorrectedBacherSeurat
+head(RealBatchCorrectedBacherSeurat@meta.data)
+
+
+
+# Load necessary libraries
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+
+# Ensure the Seurat object is loaded
+seurat_obj <- RealBatchCorrectedBacherSeurat
+
+# Extract metadata
+metadata <- seurat_obj@meta.data
+
+# Rename clusters
+metadata <- metadata %>%
+  mutate(new_cluster_names = recode(new_cluster_names,
+                                    "Central memory" = "Naïve",
+                                    "Type-1 IFN signature" = "Type-1 IFN signature",
+                                    "Transitional memory" = "Transitional memory",
+                                    "Tfh-like" = "Tfh-like",
+                                    "Cytotoxic / Th1" = "Cytotoxic / Th1"))
+
+# Define the correct order
+selected_clusters <- c("Naïve", "Type-1 IFN signature", "Transitional memory", "Tfh-like", "Cytotoxic / Th1")
+
+# Filter for only the relevant clusters
+metadata <- metadata %>%
+  filter(new_cluster_names %in% selected_clusters)
+
+# Set factor levels to enforce correct order
+metadata$new_cluster_names <- factor(metadata$new_cluster_names, levels = selected_clusters)
+
+# Calculate percentage for full dataset
+metadata_summary <- metadata %>%
+  group_by(new_cluster_names, spike) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(new_cluster_names) %>%
+  mutate(percentage = (count / sum(count)) * 100)
+
+# Create percentage bar plot for full dataset
+ggplot(metadata_summary, aes(x = new_cluster_names, y = percentage, fill = spike)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Spike Category Distribution Across Clusters (Full Dataset, %)",
+       x = "Cluster Names",
+       y = "Percentage") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Subset 500 random cells per spike category
+set.seed(1234)  # For reproducibility
+subset_metadata <- metadata %>%
+  group_by(spike) %>%
+  sample_n(size = min(500, n()), replace = FALSE) %>%
+  ungroup()
+
+# Subset additional 500 random cells from the entire dataset (any spike category)
+random_subset <- metadata %>%
+  sample_n(size = 500, replace = FALSE) %>%
+  mutate(spike = "Random 500")  # Assign new spike category
+
+# Combine the original subset with the new random 500 subset
+subset_metadata <- bind_rows(subset_metadata, random_subset)
+
+# Calculate percentage for subset
+subset_summary <- subset_metadata %>%
+  group_by(new_cluster_names, spike) %>%
+  summarise(count = n(), .groups = "drop") %>%
+  group_by(new_cluster_names) %>%
+  mutate(percentage = (count / sum(count)) * 100)
+
+# Create percentage bar plot for subset of 500 cells per category + random 500
+ggplot(subset_summary, aes(x = new_cluster_names, y = percentage, fill = spike)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(title = "Spike Category Distribution Across Clusters (500 Random Cells per Category + Random 500, %)",
+       x = "Cluster Names",
+       y = "Percentage") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#----------------------------------------------------------------------------below is for significance
+
+
+# Create a new column to differentiate between SARS-CoV-2 Spike Specific and Random 500
+subset_metadata <- subset_metadata %>%
+  mutate(spike_group = case_when(
+    spike == "SARS-CoV-2 Spike Specific" ~ "SARS-CoV-2 Spike Specific",
+    spike == "Random 500" ~ "Random 500",
+    TRUE ~ "Other"
+  ))
+
+# Filter out "Other" spike groups if they exist
+subset_metadata_filtered <- subset_metadata %>% 
+  filter(spike_group %in% c("SARS-CoV-2 Spike Specific", "Random 500"))
+
+# Perform Chi-square test for each cluster to compare SARS-CoV-2 Spike Specific vs Random 500
+significance_results <- subset_metadata_filtered %>%
+  group_by(new_cluster_names) %>%
+  summarise(
+    p_value = chisq.test(table(spike_group))$p.value,
+    .groups = "drop"
+  )
+
+# Print the results
+significance_results
+
+
+
+#------------------------------------------------------new function for p values 
+# simple two group comparison by cluster
+compare_spike_groups <- function(df, group_a, group_b,
+                                 cluster_col = "new_cluster_names",
+                                 group_col   = "spike",
+                                 digits = 6) {
+    # rename columns locally so we can write simple code
+    # this keeps your original data untouched
+    dat <- df[, c(cluster_col, group_col)]
+    names(dat) <- c("cluster", "group")
+    
+    # keep cluster display order if it is a factor
+    # otherwise keep order of first appearance
+    if (is.factor(dat$cluster)) {
+        clusters <- levels(dat$cluster)
+    } else {
+        clusters <- unique(dat$cluster)
+    }
+    
+    # check groups exist
+    if (!all(c(group_a, group_b) %in% unique(dat$group))) {
+        stop("one or both groups not found in the data")
+    }
+    
+    # counts for each group by cluster
+    countsA <- dat[dat$group == group_a, , drop = FALSE]
+    countsA <- as.data.frame(table(factor(countsA$cluster, levels = clusters)))
+    names(countsA) <- c("cluster", "countA")
+    
+    countsB <- dat[dat$group == group_b, , drop = FALSE]
+    countsB <- as.data.frame(table(factor(countsB$cluster, levels = clusters)))
+    names(countsB) <- c("cluster", "countB")
+    
+    # totals across clusters for each group
+    nA <- sum(countsA$countA)
+    nB <- sum(countsB$countB)
+    
+    # run two sample proportion test for each cluster
+    p_raw <- mapply(function(x1, x2) {
+        stats::prop.test(x = c(x1, x2), n = c(nA, nB))$p.value
+    }, countsA$countA, countsB$countB)
+    
+    # BH adjustment across clusters
+    p_adj <- p.adjust(p_raw, method = "BH")
+    
+    # print nice lines
+    cat("P values for", group_a, "vs", group_b, "by cluster\n")
+    for (i in seq_along(clusters)) {
+        cat(
+            clusters[i], ": p = ", signif(p_raw[i], digits),
+            ", BH adj p = ", signif(p_adj[i], digits), "\n", sep = ""
+        )
+    }
+    
+    # also return a small data frame invisibly if you want to capture it
+    invisible(data.frame(
+        cluster = clusters, group_a = group_a, group_b = group_b,
+        p = p_raw, p_adj = p_adj, stringsAsFactors = FALSE
+    ))
+}
+
+# example use with your subset
+# compare_spike_groups(subset_metadata, "Random 500", "SARS-CoV-2 Spike Specific")
+

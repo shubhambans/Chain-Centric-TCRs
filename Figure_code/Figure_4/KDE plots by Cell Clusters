@@ -1,0 +1,360 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
+#setup code---------------------------------------------------------------
+library(dplyr)
+library(stringdist)
+
+# Define the pattern to compare with
+pattern <- "CAGXNYGGSQGNLIF"
+
+# Define function to calculate minimum Levenshtein distance from the pattern for each part of the cdr3 sequence
+min_leven_distance <- function(cdr3, pattern) {
+    junctions <- unlist(strsplit(cdr3, "\\."))  # Split cdr3 sequence at the period (.)
+    distances <- sapply(junctions, function(j) stringdist(j, pattern, method = "lv"))
+    return(min(distances))
+}
+
+# Add CDR3_tra and CDR3_trb columns based on splitting at '.'
+RealBatchCorrectedBacherSeurat@meta.data <- RealBatchCorrectedBacherSeurat@meta.data %>%
+    mutate(
+        CDR3_tra = sapply(strsplit(cdr3, "\\."), `[`, 1),  # Extract part before the '.'
+        CDR3_trb = sapply(strsplit(cdr3, "\\."), `[`, 2),  # Extract part after the '.'
+        leven_meta = sapply(cdr3, min_leven_distance, pattern = pattern)  # Calculate min Levenshtein distance
+    )
+
+# Optionally, create a column to highlight cells based on Levenshtein distance threshold
+# RealBatchCorrectedBacherSeurat@meta.data$highlight <- ifelse(RealBatchCorrectedBacherSeurat@meta.data$leven_meta <= 3, "highlight", "normal")
+
+#--------
+library(dplyr)
+
+# Step 1: Collapse 'Epitope species' values for each unique 'CDR3', ensuring alphabetical order
+df_collapsed <- aggregate(`Epitope species` ~ CDR3, data = df, FUN = function(x) paste(sort(unique(x)), collapse = ", "))
+
+# Match and update 'epitopeSpecies' in the metadata based on either CDR3_tra or CDR3_trb
+RealBatchCorrectedBacherSeurat@meta.data$epitopeSpecies <- ifelse(
+    RealBatchCorrectedBacherSeurat@meta.data$CDR3_tra %in% df_collapsed$CDR3,
+    df_collapsed$`Epitope species`[match(RealBatchCorrectedBacherSeurat@meta.data$CDR3_tra, df_collapsed$CDR3)],
+    ifelse(
+        RealBatchCorrectedBacherSeurat@meta.data$CDR3_trb %in% df_collapsed$CDR3,
+        df_collapsed$`Epitope species`[match(RealBatchCorrectedBacherSeurat@meta.data$CDR3_trb, df_collapsed$CDR3)],
+        NA  # If neither matches, set to NA
+    )
+)
+
+# Add 'VDJmatch' column to metadata based on presence in VDJdb
+RealBatchCorrectedBacherSeurat@meta.data <- RealBatchCorrectedBacherSeurat@meta.data %>%
+    mutate(VDJmatch = ifelse(!is.na(epitopeSpecies), "Matched in VDJdb", "Not Matched in VDJdb"))
+
+# Step 2: Collapse 'Epitope gene' values for each unique 'CDR3', ensuring alphabetical order
+df_collapsed <- aggregate(`Epitope gene` ~ CDR3, data = df, FUN = function(x) paste(sort(unique(x)), collapse = ", "))
+
+# Match and insert the sorted, collapsed 'Epitope gene' values based on either CDR3_tra or CDR3_trb
+RealBatchCorrectedBacherSeurat@meta.data$`Epitope gene` <- ifelse(
+    RealBatchCorrectedBacherSeurat@meta.data$CDR3_tra %in% df_collapsed$CDR3,
+    df_collapsed$`Epitope gene`[match(RealBatchCorrectedBacherSeurat@meta.data$CDR3_tra, df_collapsed$CDR3)],
+    ifelse(
+        RealBatchCorrectedBacherSeurat@meta.data$CDR3_trb %in% df_collapsed$CDR3,
+        df_collapsed$`Epitope gene`[match(RealBatchCorrectedBacherSeurat@meta.data$CDR3_trb, df_collapsed$CDR3)],
+        NA  # If neither matches, set to NA
+    )
+)
+
+# Add the 'spike' column based on 'Epitope gene' and 'VDJmatch' in the metadata
+RealBatchCorrectedBacherSeurat@meta.data <- RealBatchCorrectedBacherSeurat@meta.data %>%
+    mutate(spike = case_when(
+        VDJmatch == "Not Matched in VDJdb" ~ "Not VDJdb Matched",  # If not matched in VDJdb
+        !grepl("SARS-CoV-2", epitopeSpecies, ignore.case = TRUE) ~ "Non SARS-CoV-2 Matched",  # If matched in VDJdb but not SARS-CoV-2
+        grepl("Spike", `Epitope gene`, ignore.case = TRUE) ~ "SARS-CoV-2 Spike Specific",  # If Epitope gene contains 'Spike'
+        TRUE ~ "SARS-CoV-2 Other Specific"  # If Epitope gene does not contain 'Spike'
+    ))
+
+# View the updated metadata of RealBatchCorrectedBacherSeurat
+head(RealBatchCorrectedBacherSeurat@meta.data)
+#----------------------------------------------------------------end of setup code
+
+# Build UMAP metadata frame before plotting by cluster (used below).
+umap_data <- Embeddings(RealBatchCorrectedBacherSeurat, "umap")
+umap_data <- as.data.frame(umap_data)
+colnames(umap_data) <- c("umap_1", "umap_2")
+metadata <- RealBatchCorrectedBacherSeurat@meta.data
+umap_data <- cbind(
+  umap_data,
+  metadata[match(rownames(umap_data), rownames(metadata)), ]
+)
+
+
+
+
+
+
+
+
+
+#this part handles how to do it for the different clusters (make sure to match up with new names that we gave the original annotations)
+# Create a function to generate a single KDE plot for each new_cluster_names category
+# it prints counts before and after sampling
+
+# library(dplyr)
+# library(ggplot2)
+# library(viridis)
+
+create_kde_plot_for_cluster <- function(cluster_name, umap_data, sample_size = 500, seed = 314) {
+  # Clean the cluster_name by replacing slashes and other special characters
+  clean_cluster_name <- gsub("[/\\]", "_", cluster_name)
+
+    # filter rows for the requested cluster
+    cluster_data <- umap_data %>% dplyr::filter(new_cluster_names == cluster_name)
+    
+    # print how many rows are available before any sampling
+    message("cells available in ", cluster_name, ": ", nrow(cluster_data))
+    
+    # if nothing to plot then return quietly
+    if (nrow(cluster_data) == 0) {
+        message("no cells found for cluster: ", cluster_name)
+        return(invisible(NULL))
+    }
+    
+    # remove rows with missing coordinates so kde does not warn
+    cluster_data <- cluster_data %>% dplyr::filter(!is.na(umap_1), !is.na(umap_2))
+    
+    # set a seed if given so the sample is reproducible
+    if (!is.null(seed)) set.seed(seed)
+    
+    # compute how many rows to take
+    n_to_take <- min(sample_size, nrow(cluster_data))
+    
+    # sample rows without replacement
+    sampled_data <- dplyr::slice_sample(cluster_data, n = n_to_take)
+    
+    # print how many rows will be plotted after sampling
+    message("cells plotted in ", cluster_name, ": ", nrow(sampled_data))
+    
+    # compute global axis limits from the full dataset for consistency
+    x_limits <- range(umap_data$umap_1, na.rm = TRUE)
+    y_limits <- range(umap_data$umap_2, na.rm = TRUE)
+    
+    # build the kde plot
+    kde_plot <- ggplot(sampled_data, aes(x = umap_1, y = umap_2)) +
+        geom_density_2d_filled(aes(fill = ..level..), alpha = 0.6) +
+        # you can use scale_fill_viridis_c() if you prefer continuous
+        scale_fill_viridis_d() +
+        theme_minimal() +
+        labs(
+            title = paste("KDE of UMAP for Cluster:", cluster_name),
+            x = "\nUMAP 1",
+            y = "UMAP 2\n"
+        ) +
+        xlim(x_limits) +
+        ylim(y_limits)
+    
+    # save the plot using the raw cluster name and the number of cells plotted
+    out_file <- paste0(
+        "UMAP_KDE_Cluster_",
+        gsub("[^A-Za-z0-9]+", "_", cluster_name),
+        "_N", nrow(sampled_data),"Seed", seed, ".png"
+    )
+    
+    ggsave(
+        filename = out_file,
+        plot = kde_plot,
+        width = 11,
+        height = 11,
+        units = "in",
+        dpi = 500
+    )
+    
+    # notify where it was saved
+    message("plot saved as ", out_file)
+    
+    # return the sampled data invisibly so you can inspect if needed
+    invisible(sampled_data)
+}
+
+# get unique cluster names
+cluster_categories <- unique(umap_data$new_cluster_names)
+
+# loop and plot each cluster
+for (category in cluster_categories) {
+    create_kde_plot_for_cluster(
+        cluster_name = category,
+        umap_data = umap_data,
+        sample_size = 500,
+        seed = 42
+    )
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#==============================================================
+#this part  does the spike type
+
+# Assuming you already have the Seurat object `RealBatchCorrectedBacherSeurat`
+# 1. Extract UMAP coordinates from Seurat object and convert to data frame
+umap_data <- Embeddings(RealBatchCorrectedBacherSeurat, "umap")
+umap_data <- as.data.frame(umap_data)  # Convert to data frame
+metadata <- RealBatchCorrectedBacherSeurat@meta.data
+# Bind all metadata columns to umap_data in the correct order
+umap_data <- cbind(
+  umap_data,
+  metadata[ match(rownames(umap_data), rownames(metadata)), ]
+)
+
+
+
+# Create a function to generate a single KDE plot for each spike category
+# load dplyr and ggplot2 if not already loaded
+# library(dplyr)
+# library(ggplot2)
+create_kde_plot_for_category <- function(spike_category, n_cells = 500, seed = 314) {
+    # filter rows that belong to the given spike category
+    category_data <- umap_data %>% dplyr::filter(spike == spike_category)
+    
+    # print how many cells we have before sampling
+    message("cells available in ", spike_category, ": ", nrow(category_data))
+    
+    # if there is nothing to plot return quietly
+    if (nrow(category_data) == 0) {
+        message("no cells found for category: ", spike_category)
+        return(invisible(NULL))
+    }
+    
+    # set an optional seed for reproducibility if provided
+    if (!is.null(seed)) set.seed(seed)
+    
+    # choose how many to sample
+    # if fewer than n_cells exist we will keep them all
+    n_to_take <- min(n_cells, nrow(category_data))
+    
+    # sample without replacement to get a subset for plotting
+    category_sample <- dplyr::slice_sample(category_data, n = n_to_take)
+    
+    # drop rows with missing umap coordinates to avoid warnings
+    category_sample <- category_sample %>% dplyr::filter(!is.na(umap_1), !is.na(umap_2))
+    
+    # report how many will be plotted after cleaning
+    message("cells plotted in ", spike_category, ": ", nrow(category_sample))
+    
+    # build the kde plot on the sampled data
+    kde_plot <- ggplot(category_sample, aes(x = umap_1, y = umap_2)) +
+        geom_density_2d_filled(aes(fill = ..level..), alpha = 0.6) +
+        # note: ..level.. is continuous
+        # if you prefer a continuous viridis scale you can use scale_fill_viridis_c()
+        scale_fill_viridis_d() +
+        theme_minimal() +
+        labs(
+            title = paste("KDE of UMAP for Spike Category:", spike_category),
+            x = "\nUMAP 1",
+            y = "UMAP 2\n"
+        )
+    
+    # save with the category and the number of cells in the file name
+    out_file <- paste0(
+        "UMAP_KDE_Spike_Category_",
+        gsub("[^A-Za-z0-9]+", "_", spike_category),
+        "_N", nrow(category_sample),"Seed", seed, ".png"
+    )
+    
+    ggsave(
+        filename = out_file,
+        plot = kde_plot,
+        width = 11,
+        height = 11,
+        units = "in",
+        dpi = 500
+    )
+    
+    message("plot saved as ", out_file)
+    
+    # return the sampled data invisibly in case you want to inspect it later
+    #invisible(category_sample)
+}
+
+
+
+# Loop through each spike category and create the corresponding KDE plot
+for (category in spike_categories) {
+  create_kde_plot_for_category(category)
+}
+
+
+#==================================================
+#this is for Random
+# Load necessary libraries
+library(Seurat)
+library(ggplot2)
+library(dplyr)
+
+# Assuming you already have the Seurat object `RealBatchCorrectedBacherSeurat`
+# 1. Extract UMAP coordinates from Seurat object and convert to data frame
+umap_data <- Embeddings(RealBatchCorrectedBacherSeurat, "umap")
+umap_data <- as.data.frame(umap_data)  # Convert to data frame
+
+# Rename columns for easier reference (lowercase columns)
+colnames(umap_data) <- c("umap_1", "umap_2")
+
+# 2. Get metadata
+metadata <- RealBatchCorrectedBacherSeurat@meta.data
+
+# 3. Define function to generate KDE plot for a random subset of 500 cells
+create_kde_plot_random_subset <- function(umap_data, metadata, sample_size = 500, seed = 314) {
+  
+  # Randomly sample 500 cells from the entire dataset (from metadata)
+  set.seed(seed)  # Set seed for reproducibility
+  sampled_cells <- metadata[sample(1:nrow(metadata), sample_size), ]
+  
+  # Get the UMAP coordinates for the sampled cells
+  sampled_umap_data <- umap_data[rownames(sampled_cells), ]
+  
+  # Set consistent axis limits for all plots (manually from -5 to 5)
+  x_limits <- c(-5.0, 5.0)
+  y_limits <- c(-5.0, 5.0)
+  
+  # Create the KDE plot for the random subset of cells
+  kde_plot <- ggplot(sampled_umap_data, aes(x = umap_1, y = umap_2)) +
+    geom_density_2d_filled(aes(fill = ..level..), alpha = 0.6) +
+    scale_fill_viridis_d() +  # Use the correct scale for discrete values
+    theme_minimal() +
+    labs(
+      title = "KDE of UMAP for 500 Randomly Selected Cells",
+      x = "\numap_1",
+      y = "umap_2\n"
+    ) +
+    # Set consistent axis limits and breaks
+    xlim(x_limits) +   # Set consistent X axis limits
+    ylim(y_limits) +   # Set consistent Y axis limits
+    scale_x_continuous(breaks = seq(-5, 5, by = 2.5)) +  # Custom breaks for x-axis
+    scale_y_continuous(breaks = seq(-5, 5, by = 2.5))    # Custom breaks for y-axis
+  
+  # Save the plot as a PNG file
+  ggsave(
+    filename = "UMAP_KDE_Random_500_Cells.png",
+    plot = kde_plot,
+    width = 11,
+    height = 11,
+    units = "in",
+    dpi = 500
+  )
+  
+  # Inform the user of successful saving
+  message("Plot saved as UMAP_KDE_Random_500_Cells.png")
+}
+
+# 4. Call the function to create the KDE plot for the random subset of 500 cells
+create_kde_plot_random_subset(umap_data, metadata)

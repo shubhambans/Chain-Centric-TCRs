@@ -1,0 +1,23 @@
+# Requires setup from Figure_code/Setup/Setup.R before running.
+
+library(ggplot2)
+library(dplyr)
+
+# Filter data to include only Healthy and Covid statuses
+CD4_filtered <- CD4merge %>%
+  filter(Status %in% c("Healthy", "Covid"))
+
+# Create the stacked bar plot
+ggplot(CD4_filtered, aes(x = Status, fill = sharing)) +
+  geom_bar(position = "fill") +  # Stacked bars showing proportions
+  facet_wrap(~ chain) +  # Facet by chain (TRA, TRB)
+  labs(
+    x = "Health Status", 
+    y = "Proportion", 
+    fill = "Sharing Status", 
+    title = "Proportion of Public vs Private by Chain Type and Health Status"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 30, hjust = 1))  # Rotate x-axis labels
+
+#no significance calculated 
