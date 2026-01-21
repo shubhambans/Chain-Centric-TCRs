@@ -3,7 +3,7 @@ Prevalent α-Chain–Centric TCR Metaclones Shape Specificity and Focus Early SA
 ## Repository layout
 
 - `Figure_code/`: R scripts and notes organized by figure and dataset (see below).
-- `Figure_PDFs/`: exported figure artifacts (PDFs or other outputs).
+- `Figure_Images/`: exported figure artifacts (PDFs or other outputs).
 - `Supplementary_tables/`: supplementary table notes and helper scripts for supplementary figures.
 - `data/`: placeholder for raw/processed datasets used by the scripts. Download the raw data bundle from Box (https://bri.box.com/s/ny65o2w9dukpt5ejvmc7nl1hl26ubicl) and load the `.RData` files as noted in `Figure_code/Setup/Setup.R`.
 
