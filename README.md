@@ -24,5 +24,3 @@ Set 5 | Combined | Combined COVID-19 + HC individuals.
 - `Figure_code/Figure_3/`: Figure 3 scripts for COVID-19/publicity analyses and motif plots (Sets 4 & 5).
 - `Figure_code/Figure_4/`: Figure 4 scripts for T cell subset analysis and visualization (Set 2).
 - `Figure_code/Figure_5/`: Figure 5 scripts for pseudotime and mismatch analyses (Set 2).
-
-Only the primary `Figure_code/Figure_1` through `Figure_code/Figure_5` folders are kept; set-specific duplicates are intentionally removed.
