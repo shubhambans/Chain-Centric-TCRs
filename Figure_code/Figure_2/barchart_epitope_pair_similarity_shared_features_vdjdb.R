@@ -40,7 +40,7 @@ TOP10 <- c("CMV","InfluenzaA","EBV","SARS-CoV-2","HomoSapiens")
 # =========================
 # OUTPUTS  (absolute path)
 # =========================
-OUT_DIR <- "~/Desktop/Shubhams_paper_code/Figure_PDFs"
+OUT_DIR <- file.path(getwd(), "Figure_Images")
 dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
 
 # =========================

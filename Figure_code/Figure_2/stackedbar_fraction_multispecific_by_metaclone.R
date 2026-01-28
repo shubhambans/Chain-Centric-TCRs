@@ -20,7 +20,7 @@ suppressPackageStartupMessages({
 })
 
 ## ---------- OUTPUT DIRECTORY ----------
-OUT_DIR <- "~/Desktop/Shubhams_paper_code/Figure_PDFs"
+OUT_DIR <- file.path(getwd(), "Figure_Images")
 dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
 
 ## ---------- GLOBAL FONT / SIZE CONTROLS ----------

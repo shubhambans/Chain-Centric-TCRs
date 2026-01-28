@@ -48,7 +48,7 @@ SET_SEED   <- 42
 TRAIN_FRAC <- 0.80
 
 # OUTPUTS
-OUT_DIR <- "~/Desktop/Shubhams_paper_code/Figure_PDFs"
+OUT_DIR <- file.path(getwd(), "Figure_Images")
 dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
 
 ###############################################################################

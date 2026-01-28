@@ -25,7 +25,7 @@ msg <- function(...) message(sprintf("[%s] %s", format(Sys.time(), "%H:%M:%S"), 
 ## ---------- USER SETTINGS ----------
 VDJDB_PATH <- "/Users/peterlinsley/Dropbox/Mac/Desktop/Shubhams_paper_code/data/vdjdb.txt"
 PGEN_PATH  <- "/Users/peterlinsley/Dropbox/Mac/Desktop/Shubhams_paper_code/data/igor_output_combined.csv"
-OUT_DIR    <- "/Users/peterlinsley/Dropbox/Mac/Desktop/Shubhams_paper_code/Figure_PDFs"
+OUT_DIR <- file.path(getwd(), "Figure_Images")
 
 SEED <- 42
 N_CELLS_PER_TYPE <- 300          # cells = unique libid per type

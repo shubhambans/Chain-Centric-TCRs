@@ -51,7 +51,7 @@ PVAL_TEST_WITHIN_CELLTYPE   <- "wilcox"  # "wilcox" or "t"
 DATA_DIR <- "/Users/peterlinsley/Desktop/Shubhams_paper_code/data"
 CSV_FILE <- "Su_et_al_filtered_TCRs.csv"
 
-OUT_DIR <- "~/Desktop/Shubhams_paper_code/Figure_PDFs"
+OUT_DIR <- file.path(getwd(), "Figure_Images")
 dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
 
 OUT_STEM <- paste0(

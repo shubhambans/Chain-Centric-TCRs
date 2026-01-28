@@ -25,7 +25,7 @@ suppressPackageStartupMessages({
 ###############################################################################
 # 0) OUTPUT DIRECTORY + FILENAMES
 ###############################################################################
-OUT_DIR  <- "~/Desktop/Shubhams_paper_code/Figure_PDFs"
+OUT_DIR <- file.path(getwd(), "Figure_Images")
 dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
 
 OUT_STEM <- "Fig.3E_Su_CD4_fraction_metaclone_by_stage"

@@ -25,7 +25,7 @@ sanitize_chr <- function(x) {
 vdj_path    <- "~/Desktop/Shubhams_paper_code/data/hu_with_metaclone_20250826_095644.csv"
 
 # >>> OUTPUT DIRECTORY (NEW) <<<
-OUT_DIR     <- "~/Desktop/Shubhams_paper_code/Figure_PDFs"
+OUT_DIR <- file.path(getwd(), "Figure_Images")
 dir.create(OUT_DIR, showWarnings = FALSE, recursive = TRUE)
 
 # All outputs will go here:
